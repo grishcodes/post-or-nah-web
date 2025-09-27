@@ -1,0 +1,48 @@
+# Node
+node_modules/
+.env
+.env.*
+.vscode/
+.DS_Store
+/dist
+/build
+/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# Build output
+dist/
+build/
+
+# Firebase
+.firebase/
+
+# Mac
+.DS_Store
+
+# IDEs
+.idea/
+
+# OS files
+Thumbs.db
+
+# Local env
+.local
+
+# lockfiles (optional)
+package-lock.json
+pnpm-lock.yaml
+
+# OneDrive temp files
+~$*
+*.tmp
+
+# Coverage
+coverage/
+
+# Misc
+*.bak
+
+# Ignore uploaded images in development (if any)
+uploads/
