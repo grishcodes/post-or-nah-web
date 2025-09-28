@@ -20,6 +20,8 @@ export default function App() {
   const [checksUsed, setChecksUsed] = useState(0);
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [showSignInToast, setShowSignInToast] = useState(false);
+  const [prevUser, setPrevUser] = useState<any | null>(null);
 
   // Load checks used from localStorage on mount
   useEffect(() => {
@@ -36,9 +38,16 @@ export default function App() {
       // if logged out, show login screen
       if (!u) {
         setCurrentScreen('splash');
+        setShowSignInToast(false);
       } else {
         // when user signs in, move to upload screen
         setCurrentScreen('upload');
+        // show a brief sign-in toast when transitioning from logged-out to logged-in
+        if (!prevUser) {
+          setShowSignInToast(true);
+          setTimeout(() => setShowSignInToast(false), 2500);
+        }
+        setPrevUser(u);
       }
     });
     return () => unsub();
@@ -131,6 +140,17 @@ export default function App() {
           animate={{ scale: 1 }}
         >
           Premium ✨
+        </motion.div>
+      )}
+
+      {/* Sign-in toast */}
+      {showSignInToast && user && (
+        <motion.div
+          className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/90 text-blue-800 px-4 py-2 rounded-full shadow-md z-50"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          Signed in as {user.displayName || user.email}
         </motion.div>
       )}
     </div>
