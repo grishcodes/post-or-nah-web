@@ -1,5 +1,7 @@
 import { motion } from 'motion/react';
 import { useState, useRef } from 'react';
+import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
+import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Upload, Camera } from 'lucide-react';
@@ -54,10 +56,16 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
     >
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-black text-white mb-2">Post or Nah</h1>
-        <p className="text-blue-100">Check #{checksUsed + 1} of 15 free</p>
+      {/* Header with logo and user */}
+      <div className="mb-8 relative">
+        <div className="absolute top-0 right-0">
+          {/* user avatar + sign out */}
+          <AuthControls />
+        </div>
+        <div className="text-center">
+          <img src={appIcon} alt="Post or Nah" className="w-32 h-32 rounded-3xl shadow-2xl mx-auto mb-2" />
+          <p className="text-blue-100">Check #{checksUsed + 1} of 15 free</p>
+        </div>
       </div>
 
       {/* Upload Section */}
@@ -139,5 +147,28 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
         </motion.div>
       </div>
     </motion.div>
+  );
+}
+
+function AuthControls() {
+  const { user, signOut } = useAuth();
+  if (!user) return null;
+
+  return (
+    <div className="flex items-center gap-3 p-2">
+      {user.photoURL && (
+        // eslint-disable-next-line jsx-a11y/img-redundant-alt
+        <img src={user.photoURL} alt="User avatar" className="w-10 h-10 rounded-full shadow-sm" />
+      )}
+      <div className="flex items-center gap-2">
+        <span className="text-white text-sm hidden sm:inline">{user.displayName}</span>
+        <button
+          onClick={() => signOut()}
+          className="text-sm text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
   );
 }
