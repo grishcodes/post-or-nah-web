@@ -50,30 +50,26 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 pt-20 pb-8 relative"
+      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 py-8"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
     >
-      {/* Logo centered at top */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-        <img src={appIcon} alt="Post or Nah" className="w-32 h-32 rounded-3xl shadow-2xl" />
-      </div>
-
-      {/* Header area with auth controls */}
-      <div className="mb-8">
-        <div className="absolute top-6 right-4">
-          {/* user avatar + sign out */}
+      {/* Top-right auth controls */}
+      <div className="relative">
+        <div className="absolute top-0 right-0">
           <AuthControls />
-        </div>
-        <div className="text-center pt-6">
-          <p className="text-blue-100">Check #{checksUsed + 1} of 15 free</p>
         </div>
       </div>
 
       {/* Upload Section */}
       <div className="flex-1 flex flex-col items-center justify-center space-y-8">
+        {/* Centered logo (match splash) */}
+        <div className="text-center">
+          <img src={appIcon} alt="Post or Nah" className="app-logo rounded-3xl shadow-2xl mx-auto mb-2" />
+          <p className="text-blue-100 mb-4">Check #{checksUsed + 1} of 15 free</p>
+        </div>
         <motion.div 
           className="w-full max-w-sm"
           initial={{ opacity: 0, y: 6, scale: 0.995 }}

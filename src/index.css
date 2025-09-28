@@ -223,6 +223,14 @@
     height: auto;
   }
 
+/* App-specific logo override to prevent global img rules from scaling it */
+.app-logo {
+  max-width: none;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
   button, input, select, optgroup, textarea {
     font: inherit;
     font-feature-settings: inherit;
