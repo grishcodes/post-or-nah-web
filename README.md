@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
   # Post or Nah Web App
 
@@ -9,3 +10,7 @@
 
   Run `npm run dev` to start the development server.
   
+=======
+# post-or-nah-web
+Post or nah V1
+>>>>>>> e7b1bec6ae32785f528c9779c0ffb04371c17c3a
