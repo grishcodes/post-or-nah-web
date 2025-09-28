@@ -58,12 +58,14 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
     >
       {/* Header with logo and user */}
       <div className="mb-8 relative">
-        <div className="absolute top-0 right-0">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2">
+          <img src={appIcon} alt="Post or Nah" className="w-32 h-32 rounded-3xl shadow-2xl" />
+        </div>
+        <div className="absolute top-6 right-0">
           {/* user avatar + sign out */}
           <AuthControls />
         </div>
-        <div className="text-center">
-          <img src={appIcon} alt="Post or Nah" className="w-32 h-32 rounded-3xl shadow-2xl mx-auto mb-2" />
+        <div className="text-center pt-20">
           <p className="text-blue-100">Check #{checksUsed + 1} of 15 free</p>
         </div>
       </div>

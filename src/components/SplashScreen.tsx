@@ -33,19 +33,15 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col items-center justify-between px-6 py-12"
+      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col items-center justify-between px-6 py-12 relative"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Logo in center */}
-      <div className="flex-1 flex items-center justify-center">
-        <img
-          src={appIcon}
-          alt="Post or Nah"
-          className="w-32 h-32 rounded-3xl shadow-2xl"
-        />
+      {/* Logo at top-middle */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2">
+        <img src={appIcon} alt="Post or Nah" className="w-32 h-32 rounded-3xl shadow-2xl" />
       </div>
 
       {/* Bottom section with text and button */}
