@@ -4,8 +4,8 @@ import { SplashScreen } from './components/SplashScreen';
 import { UploadScreen } from './components/UploadScreen';
 import { ResultScreen } from './components/ResultScreen';
 import { SubscriptionScreen } from './components/SubscriptionScreen';
-import { LoginScreen } from './components/LoginScreen';
-import { useAuth } from './context/AuthContext';
+import { auth } from './firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
 
 type Screen = 'splash' | 'upload' | 'result' | 'subscription' | 'login';
 
@@ -15,6 +15,7 @@ interface PhotoData {
 }
 
 export default function App() {
+  const [user, setUser] = useState<any | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [checksUsed, setChecksUsed] = useState(0);
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
@@ -26,6 +27,21 @@ export default function App() {
     if (saved) {
       setChecksUsed(parseInt(saved, 10));
     }
+  }, []);
+
+  // Listen for Firebase auth state changes
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      // if logged out, show login screen
+      if (!u) {
+        setCurrentScreen('splash');
+      } else {
+        // when user signs in, move to upload screen
+        setCurrentScreen('upload');
+      }
+    });
+    return () => unsub();
   }, []);
 
   // Save checks used to localStorage
@@ -65,6 +81,9 @@ export default function App() {
   const handleCloseSubscription = () => {
     setCurrentScreen('upload');
   };
+
+  // App renders normally; routing handles the /login page. Auth state
+  // is used to advance the flow automatically when a user signs in.
 
   return (
     <div className="w-full h-screen overflow-hidden bg-gradient-to-b from-blue-300 to-blue-800">
