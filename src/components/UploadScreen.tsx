@@ -1,6 +1,8 @@
 import { motion } from 'motion/react';
 import { useState, useRef } from 'react';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
+import newLogo from '../assets/1.png';
+import newLogo2 from '../assets/2.png';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -67,7 +69,10 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
       <div className="flex-1 flex flex-col items-center justify-center space-y-8">
         {/* Centered logo (match splash) */}
         <div className="text-center">
-          <img src={appIcon} alt="Post or Nah" className="app-logo rounded-3xl shadow-2xl mx-auto mb-2" />
+          <div className="flex items-center justify-center mb-2" style={{ gap: '10px' }}>
+            <img src={newLogo} alt="Post or Nah" className="app-logo rounded-3xl shadow-2xl" />
+            <img src={newLogo2} alt="Post or Nah variant" className="app-logo rounded-3xl shadow-2xl" />
+          </div>
           <p className="text-blue-100 mb-4">Check #{checksUsed + 1} of 15 free</p>
         </div>
         <motion.div 
