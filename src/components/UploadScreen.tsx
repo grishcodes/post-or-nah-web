@@ -9,7 +9,8 @@ import { Badge } from './ui/badge';
 import { Upload, Camera } from 'lucide-react';
 
 interface UploadScreenProps {
-  onPhotoUpload: (photo: File, vibes: string[]) => void;
+  // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
+  onPhotoUpload: (photo: File | string, vibes: string[]) => void;
   checksUsed: number;
 }
 
@@ -24,6 +25,11 @@ const VIBE_CATEGORIES = [
 export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
+  const [verdict, setVerdict] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rawResponse, setRawResponse] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleVibeToggle = (vibe: string) => {
@@ -40,13 +46,102 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // New file uploaded -> clear previous analysis
+      setVerdict(null);
+      setSuggestion(null);
+      setError(null);
+      setRawResponse(null);
       setUploadedPhoto(file);
     }
   };
 
   const handleSubmit = () => {
     if (uploadedPhoto && selectedVibes.length > 0) {
-      onPhotoUpload(uploadedPhoto, selectedVibes);
+      // Clear previous states and show loading
+      setVerdict(null);
+      setSuggestion(null);
+      setError(null);
+      setRawResponse(null);
+      setLoading(true);
+
+      // Convert file to base64 and POST to /api/feedback
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = reader.result as string; // data:<mime>;base64,....
+        const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
+
+        try {
+          // If running on localhost (Vite dev), call the local Express server we added on :3001.
+          const baseApi = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3001/api/feedback'
+            : '/api/feedback';
+
+          const res = await fetch(baseApi, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, category: selectedVibes.join(', ') }),
+          });
+
+          if (!res.ok) {
+            // Read the body once as text, then try to parse JSON from it
+            let details = null;
+            let bodyText = '';
+            try {
+              bodyText = await res.text();
+            } catch (e) {
+              bodyText = '';
+            }
+            try {
+              const jsonErr = bodyText ? JSON.parse(bodyText) : null;
+              details = jsonErr?.error || jsonErr?.details || (jsonErr ? JSON.stringify(jsonErr) : bodyText);
+            } catch (e) {
+              details = bodyText || 'No response body';
+            }
+            const statusMsg = `API error ${res.status}: ${details}`;
+            console.error(statusMsg);
+            throw new Error(statusMsg);
+          }
+
+          const json = await res.json();
+          // log raw response for debugging
+          console.log('Hugging Face raw response:', json);
+          setRawResponse(json);
+
+          // Expecting { verdict, suggestion, raw }
+          if (json?.verdict) setVerdict(json.verdict);
+          if (json?.suggestion) setSuggestion(json.suggestion);
+
+          // If API returned no verdict, attempt to parse from raw
+          if (!json?.verdict && json?.raw) {
+            const maybe = (json.raw?.generated_text || json.raw?.text || '') as string;
+            if (maybe) {
+              if (maybe.toLowerCase().includes('post')) setVerdict('Post ✅');
+              else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah ❌');
+            }
+          }
+
+          // Pass raw result to parent as well (keeps previous behavior)
+          onPhotoUpload(json, selectedVibes);
+        } catch (err: any) {
+          console.error('Feedback request failed', err);
+          // show specific error if available
+          const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
+
+          // Network-level failures (e.g. "Failed to fetch") are usually because the backend
+          // isn't reachable. Provide a clearer hint so it's easier to debug locally.
+          if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+            setError(
+              `${msg} — backend unreachable. Make sure your API server is running.
+If you use Next.js API routes, run 'npm run dev' from the project root. If you use the optional Express server, run 'node server.js' and ensure PORT/CORS are configured.`
+            );
+          } else {
+            setError(msg);
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+      reader.readAsDataURL(uploadedPhoto);
     }
   };
 
@@ -81,6 +176,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.15, duration: 0.45, ease: "easeOut" }}
         >
+          {/* Direct unsigned Cloudinary upload form (uses your unsigned preset) */}
+          <UploadForm onUpload={(url) => {
+            // pass uploaded url to parent
+            onPhotoUpload(url, selectedVibes);
+          }} />
+
           <input
             type="file"
             accept="image/*"
@@ -88,7 +189,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
             className="hidden"
             ref={fileInputRef}
           />
-          
+
           <Button
             onClick={() => fileInputRef.current?.click()}
             className="w-full h-32 bg-white/20 backdrop-blur-sm hover:bg-white/30 border-2 border-dashed border-white/50 text-white rounded-2xl flex flex-col items-center justify-center space-y-3"
@@ -109,6 +210,36 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
             )}
           </Button>
         </motion.div>
+
+        {/* Results area: loading, verdict, suggestion, error */}
+        <div className="w-full max-w-sm mt-4 text-center">
+          {loading && (
+            <div className="text-white bg-white/5 px-4 py-3 rounded-lg">Analyzing your photo...</div>
+          )}
+
+          {error && (
+            <div className="text-red-200 bg-red-900/20 px-4 py-3 rounded-lg">{error}</div>
+          )}
+
+          {verdict && (
+            <div className="mt-4 bg-white/5 p-6 rounded-2xl">
+              <div className="text-3xl font-extrabold text-white">{verdict}</div>
+              {suggestion && (
+                <div className="mt-2 text-sm text-white/80">{suggestion}</div>
+              )}
+            </div>
+          )}
+
+          {/* Developer raw response link (collapsed) */}
+          {rawResponse && (
+            <details className="mt-3 text-left text-xs text-white/60">
+              <summary className="cursor-pointer">Show raw response (debug)</summary>
+              <pre className="whitespace-pre-wrap max-h-48 overflow-auto text-xs mt-2">{JSON.stringify(rawResponse, null, 2)}</pre>
+            </details>
+          )}
+        </div>
+
+        {/* The UploadForm is a tiny helper that posts directly to Cloudinary using an unsigned preset. */}
 
         {/* Vibe Selection */}
         <motion.div 
@@ -176,4 +307,34 @@ function AuthControls() {
       </div>
     </div>
   );
+}
+
+// Unsigned upload form — posts directly to Cloudinary using an unsigned preset.
+// Usage: <UploadForm onUpload={(url) => { ... }} />
+function UploadForm({ onUpload }: { onUpload: (url: string) => void }) {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'your_unsigned_preset'); // replace with your unsigned preset
+
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/YOUR_CLOUD_NAME/image/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.secure_url) {
+        onUpload(data.secure_url);
+      } else {
+        console.error('Cloudinary upload failed', data);
+      }
+    } catch (err) {
+      console.error('Upload error', err);
+    }
+  };
+
+  return <input type="file" accept="image/*" onChange={handleFile} className="mb-2" />;
 }
