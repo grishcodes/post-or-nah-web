@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 interface ResultScreenProps {
   photo: File | string;
   vibes: string[];
+  verdict?: string;
+  suggestion?: string;
   onTryAnother: () => void;
 }
 
@@ -43,9 +45,12 @@ const generateAIResponse = (vibes: string[]) => {
     { verdict: 'Post ✅', suggestions: ['Looking good!', 'Great photo quality'] };
 };
 
-export function ResultScreen({ photo, vibes, onTryAnother }: ResultScreenProps) {
+export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, onTryAnother }: ResultScreenProps) {
   const [photoUrl, setPhotoUrl] = useState<string>('');
-  const aiResponse = generateAIResponse(vibes);
+  // Prefer server-provided verdict/suggestion; fallback to mock if absent
+  const aiResponse = verdictProp
+    ? { verdict: verdictProp, suggestions: suggestionProp ? [suggestionProp] : [] }
+    : generateAIResponse(vibes);
   const isPositive = aiResponse.verdict.includes('✅');
 
   useEffect(() => {

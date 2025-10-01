@@ -10,7 +10,7 @@ import { Upload, Camera } from 'lucide-react';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
-  onPhotoUpload: (photo: File | string, vibes: string[]) => void;
+  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
   checksUsed: number;
 }
 
@@ -121,8 +121,8 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
           }
 
           // Navigate to result view with the actual photo the user uploaded
-          // (Previously this was sending the JSON response, which broke ResultScreen.)
-          onPhotoUpload(uploadedPhoto, selectedVibes);
+          // and include AI results so ResultScreen can render them.
+          onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion);
         } catch (err: any) {
           console.error('Feedback request failed', err);
           // show specific error if available
