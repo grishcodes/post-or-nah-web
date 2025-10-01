@@ -226,9 +226,15 @@
 /* App-specific logo override to prevent global img rules from scaling it */
 .app-logo {
   max-width: none;
-  width: 48px;
-  height: 48px;
   object-fit: contain;
+  image-rendering: auto;
+  background: transparent;
+}
+
+/* Utility: perfectly circular mask with 1px inward feather to avoid halos */
+.circle-mask {
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 96%, transparent 100%);
+  mask-image: radial-gradient(circle at 50% 50%, black 96%, transparent 100%);
 }
 
   button, input, select, optgroup, textarea {
@@ -1637,4 +1643,22 @@ html {
 @property --tw-backdrop-sepia {
   syntax: "*";
   inherits: false
+}
+
+/* Custom utility classes for UploadScreen */
+.border-3 {
+  border-width: 3px;
+}
+
+/* App logo sizing override */
+.app-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+}
+
+/* Global background styling */
+body {
+  background: linear-gradient(to bottom, #93c5fd, #1e40af);
+  min-height: 100vh;
 }

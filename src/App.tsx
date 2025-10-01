@@ -10,7 +10,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 type Screen = 'splash' | 'upload' | 'result' | 'subscription' | 'login';
 
 interface PhotoData {
-  file: File;
+  file: File | string;
   vibes: string[];
 }
 
@@ -53,7 +53,7 @@ export default function App() {
     setCurrentScreen('upload');
   };
 
-  const handlePhotoUpload = (photo: File, vibes: string[]) => {
+  const handlePhotoUpload = (photo: File | string, vibes: string[]) => {
     // Check if user has reached free limit and isn't premium
     if (checksUsed >= 15 && !isPremium) {
       setCurrentScreen('subscription');
@@ -86,7 +86,7 @@ export default function App() {
   // is used to advance the flow automatically when a user signs in.
 
   return (
-    <div className="w-full h-screen overflow-hidden bg-gradient-to-b from-blue-300 to-blue-800">
+    <div className="w-full min-h-screen overflow-x-hidden overflow-y-auto bg-gradient-to-b from-blue-300 to-blue-800">
       <AnimatePresence mode="wait">
         {currentScreen === 'splash' && (
           <motion.div key="splash">
