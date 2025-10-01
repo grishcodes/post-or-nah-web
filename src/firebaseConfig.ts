@@ -1,10 +1,8 @@
 // Import the functions you need from the SDKs you need
 // Firebase initialization and auth helpers
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getAnalytics, Analytics } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider, signInWithPopup, Auth, User } from "firebase/auth";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -19,18 +17,18 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const app: FirebaseApp = initializeApp(firebaseConfig);
+const analytics: Analytics = getAnalytics(app);
 
 // Auth exports
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
+const auth: Auth = getAuth(app);
+const provider: GoogleAuthProvider = new GoogleAuthProvider();
 
 /**
  * Launches a Google Sign-In popup and returns the signed-in user.
  * Errors are caught and logged; caller can handle the thrown error.
  */
-async function signInWithGoogle() {
+async function signInWithGoogle(): Promise<User> {
   try {
     const result = await signInWithPopup(auth, provider);
     // This gives you a Google Access Token. You can use it to access the Google API.
@@ -44,3 +42,4 @@ async function signInWithGoogle() {
 }
 
 export { auth, provider, signInWithGoogle };
+export type { User };
