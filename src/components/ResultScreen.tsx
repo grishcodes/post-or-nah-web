@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ResultScreenProps {
-  photo: File;
+  photo: File | string;
   vibes: string[];
   onTryAnother: () => void;
 }
@@ -49,18 +49,22 @@ export function ResultScreen({ photo, vibes, onTryAnother }: ResultScreenProps) 
   const isPositive = aiResponse.verdict.includes('✅');
 
   useEffect(() => {
-    const url = URL.createObjectURL(photo);
-    setPhotoUrl(url);
-    
-    // Cleanup function to revoke the object URL
-    return () => {
-      URL.revokeObjectURL(url);
-    };
+    if (typeof photo === 'string') {
+      setPhotoUrl(photo);
+    } else {
+      const url = URL.createObjectURL(photo);
+      setPhotoUrl(url);
+      
+      // Cleanup function to revoke the object URL
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
   }, [photo]);
 
   return (
     <motion.div 
-      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 py-8"
+      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 py-8 pb-16"
       initial={{ x: 300, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -300, opacity: 0 }}
@@ -145,13 +149,15 @@ export function ResultScreen({ photo, vibes, onTryAnother }: ResultScreenProps) 
         >
           <Button
             onClick={onTryAnother}
-            className="bg-white text-blue-800 hover:bg-white/90 px-8 py-3 rounded-full text-lg flex items-center space-x-2"
+            className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-6 py-3 rounded-full text-base md:text-lg font-semibold flex items-center gap-2 whitespace-nowrap"
           >
             <RefreshCw className="w-5 h-5" />
             <span>Try Another Photo</span>
           </Button>
         </motion.div>
       </div>
+      {/* bottom spacer for scroll */}
+      <div className="h-10" />
     </motion.div>
   );
 }

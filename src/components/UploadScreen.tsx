@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useState, useRef } from 'react';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
-import newLogo from '../assets/1.png';
+import newLogo from '../assets/1.png'; 
 import newLogo2 from '../assets/2.png';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
@@ -71,9 +71,9 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
         const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
 
         try {
-          // If running on localhost (Vite dev), call the local Express server we added on :3001.
+          // If running on localhost (Vite dev), call the local Express server (port 5000).
           const baseApi = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3001/api/feedback'
+            ? 'http://localhost:5000/api/feedback'
             : '/api/feedback';
 
           const res = await fetch(baseApi, {
@@ -120,8 +120,9 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
             }
           }
 
-          // Pass raw result to parent as well (keeps previous behavior)
-          onPhotoUpload(json, selectedVibes);
+          // Navigate to result view with the actual photo the user uploaded
+          // (Previously this was sending the JSON response, which broke ResultScreen.)
+          onPhotoUpload(uploadedPhoto, selectedVibes);
         } catch (err: any) {
           console.error('Feedback request failed', err);
           // show specific error if available
@@ -146,41 +147,58 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
   };
 
   return (
-    <motion.div 
-      className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 py-8"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 8 }}
-      transition={{ duration: 0.45, ease: "easeOut" }}
-    >
+    <div className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800">
       {/* Top-right auth controls */}
       <div className="relative">
-        <div className="absolute top-0 right-0">
+        <div className="absolute top-4 right-4 z-10">
           <AuthControls />
         </div>
       </div>
 
-      {/* Upload Section */}
-      <div className="flex-1 flex flex-col items-center justify-center space-y-8">
-        {/* Centered logo (match splash) */}
-        <div className="text-center">
-          <div className="flex items-center justify-center mb-2" style={{ gap: '10px' }}>
-            <img src={newLogo} alt="Post or Nah" className="app-logo rounded-3xl shadow-2xl" />
-            <img src={newLogo2} alt="Post or Nah variant" className="app-logo rounded-3xl shadow-2xl" />
-          </div>
-          <p className="text-blue-100 mb-4">Check #{checksUsed + 1} of 15 free</p>
-        </div>
-        <motion.div 
-          className="w-full max-w-sm"
-          initial={{ opacity: 0, y: 6, scale: 0.995 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.15, duration: 0.45, ease: "easeOut" }}
+      {/* Main Content Container */}
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        {/* Header Section */}
+        <motion.div
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          {/* Direct unsigned Cloudinary upload form (uses your unsigned preset) */}
-          <UploadForm onUpload={(url) => {
-            // pass uploaded url to parent
-            onPhotoUpload(url, selectedVibes);
-          }} />
+          <div className="flex items-center justify-center mb-4 gap-3">
+            {/* Mask logos to remove any visible white fringe/outline */}
+            <div className="w-12 h-12 rounded-full overflow-hidden circle-mask transition-transform duration-200 ease-out hover:scale-105">
+              <img
+                src={newLogo}
+                alt="Post or Nah"
+                className="w-full h-full object-cover transform-gpu origin-center scale-[1.1] select-none pointer-events-none"
+                draggable={false}
+              />
+            </div>
+            <div className="w-12 h-12 rounded-full overflow-hidden circle-mask transition-transform duration-200 ease-out hover:scale-105">
+              <img
+                src={newLogo2}
+                alt="Post or Nah variant"
+                className="w-full h-full object-cover transform-gpu origin-center scale-[1.1] select-none pointer-events-none"
+                draggable={false}
+              />
+            </div>
+          </div>
+          <p className="text-blue-100 text-lg">Check #{checksUsed + 1} of 15 free</p>
+        </motion.div>
+
+        {/* Upload Section */}
+        <motion.div
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
+        >
+          {/* Hidden Cloudinary Upload Form */}
+          <div className="hidden">
+            <UploadForm onUpload={(url) => {
+              onPhotoUpload(url, selectedVibes);
+            }} />
+          </div>
 
           <input
             type="file"
@@ -192,72 +210,44 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
 
           <Button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full h-32 bg-white/20 backdrop-blur-sm hover:bg-white/30 border-2 border-dashed border-white/50 text-white rounded-2xl flex flex-col items-center justify-center space-y-3"
+            className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
             variant="ghost"
           >
             {uploadedPhoto ? (
-              <div className="flex flex-col items-center space-y-2">
-                <Camera className="w-8 h-8" />
-                <span className="text-lg">Photo Selected ✓</span>
-                <span className="text-sm text-blue-100">{uploadedPhoto.name}</span>
+              <div className="flex flex-col items-center space-y-3">
+                <Camera className="w-10 h-10" />
+                <span className="text-xl font-medium">Photo Selected ✓</span>
+                <span className="text-sm text-blue-100 px-4 py-1 bg-white/10 rounded-full">
+                  {uploadedPhoto.name.length > 20 ? `${uploadedPhoto.name.substring(0, 20)}...` : uploadedPhoto.name}
+                </span>
               </div>
             ) : (
-              <div className="flex flex-col items-center space-y-2">
-                <Upload className="w-8 h-8" />
-                <span className="text-2xl">Upload Photo</span>
-                <span className="text-sm text-blue-100">Get AI feedback on your picture</span>
+              <div className="flex flex-col items-center space-y-3">
+                <Upload className="w-10 h-10" />
+                <span className="text-2xl font-medium">Upload Photo</span>
+                <span className="text-base text-blue-100">Get AI feedback on your picture</span>
               </div>
             )}
           </Button>
         </motion.div>
 
-        {/* Results area: loading, verdict, suggestion, error */}
-        <div className="w-full max-w-sm mt-4 text-center">
-          {loading && (
-            <div className="text-white bg-white/5 px-4 py-3 rounded-lg">Analyzing your photo...</div>
-          )}
-
-          {error && (
-            <div className="text-red-200 bg-red-900/20 px-4 py-3 rounded-lg">{error}</div>
-          )}
-
-          {verdict && (
-            <div className="mt-4 bg-white/5 p-6 rounded-2xl">
-              <div className="text-3xl font-extrabold text-white">{verdict}</div>
-              {suggestion && (
-                <div className="mt-2 text-sm text-white/80">{suggestion}</div>
-              )}
-            </div>
-          )}
-
-          {/* Developer raw response link (collapsed) */}
-          {rawResponse && (
-            <details className="mt-3 text-left text-xs text-white/60">
-              <summary className="cursor-pointer">Show raw response (debug)</summary>
-              <pre className="whitespace-pre-wrap max-h-48 overflow-auto text-xs mt-2">{JSON.stringify(rawResponse, null, 2)}</pre>
-            </details>
-          )}
-        </div>
-
-        {/* The UploadForm is a tiny helper that posts directly to Cloudinary using an unsigned preset. */}
-
         {/* Vibe Selection */}
-        <motion.div 
-          className="w-full max-w-sm space-y-4"
-          initial={{ opacity: 0, y: 6 }}
+        <motion.div
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.45, ease: "easeOut" }}
+          transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
         >
-          <h3 className="text-xl text-white text-center">Select Vibes (up to 2)</h3>
+          <h3 className="text-xl text-white text-center mb-6 font-medium">Select Vibes (up to 2)</h3>
           <div className="flex flex-wrap gap-3 justify-center">
             {VIBE_CATEGORIES.map((vibe) => (
               <Badge
                 key={vibe}
                 onClick={() => handleVibeToggle(vibe)}
-                className={`px-4 py-2 cursor-pointer transition-all text-base ${
+                className={`px-6 py-3 cursor-pointer transition-all duration-300 text-base font-medium rounded-full ${
                   selectedVibes.includes(vibe)
-                    ? 'bg-white text-blue-800 hover:bg-white/90'
-                    : 'bg-white/20 text-white hover:bg-white/30 border border-white/30'
+                    ? 'bg-white text-blue-800 hover:bg-white/90 shadow-lg scale-105'
+                    : 'bg-white/15 text-white hover:bg-white/25 border border-white/30 hover:scale-105'
                 }`}
                 variant="secondary"
               >
@@ -269,20 +259,134 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
 
         {/* Submit Button */}
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.45, ease: "easeOut" }}
+          transition={{ delay: 0.6, duration: 0.6, ease: "easeOut" }}
         >
           <Button
             onClick={handleSubmit}
             disabled={!uploadedPhoto || selectedVibes.length === 0}
-            className="bg-white text-blue-800 hover:bg-white/90 px-8 py-3 rounded-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
           >
-            Get AI Feedback
+            {loading ? 'Analyzing...' : 'Get AI Feedback'}
           </Button>
         </motion.div>
+
+        {/* Loading State */}
+        {loading && (
+          <motion.div
+            className="text-center mb-8"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-8 py-6 rounded-3xl">
+              <div className="flex items-center justify-center space-x-3 mb-3">
+                <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span className="text-white text-lg font-medium">Analyzing your photo...</span>
+              </div>
+              <p className="text-blue-100 text-sm">This might take a few seconds</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            className="mb-8"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <div className="bg-red-900/20 backdrop-blur-sm border border-red-500/30 px-6 py-4 rounded-2xl">
+              <div className="text-red-200 text-center">
+                <div className="text-lg font-medium mb-2">Oops! Something went wrong</div>
+                <div className="text-sm opacity-90">{error}</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Results Section */}
+        {verdict && (
+          <motion.div
+            className="mb-8"
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ 
+              duration: 0.7, 
+              ease: [0.22, 1, 0.36, 1],
+              type: "spring",
+              stiffness: 100,
+              damping: 15
+            }}
+          >
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl shadow-2xl">
+              <div className="space-y-6">
+                {/* Verdict Section */}
+                <motion.div
+                  className="text-center"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
+                >
+                  <div className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">
+                    Verdict
+                  </div>
+                  <div className="text-5xl font-bold text-white mb-2">
+                    {verdict}
+                  </div>
+                </motion.div>
+
+                {/* Suggestion Section */}
+                {suggestion && (
+                  <motion.div
+                    className="bg-white/5 backdrop-blur-sm border border-white/10 p-6 rounded-2xl"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+                  >
+                    <div className="text-center">
+                      <div className="text-sm font-semibold text-blue-200/80 uppercase tracking-wider mb-3">
+                        Suggestion
+                      </div>
+                      <div className="text-lg text-blue-100 leading-relaxed max-w-md mx-auto">
+                        {suggestion}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Developer Debug Section */}
+        {rawResponse && (
+          <motion.div
+            className="mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+          >
+            <details className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+              <summary className="cursor-pointer p-4 text-white/60 text-sm font-medium hover:bg-white/5 transition-colors">
+                Show raw response (debug)
+              </summary>
+              <div className="p-4 border-t border-white/10">
+                <pre className="text-xs text-white/70 overflow-auto max-h-48 whitespace-pre-wrap">
+                  {JSON.stringify(rawResponse, null, 2)}
+                </pre>
+              </div>
+            </details>
+          </motion.div>
+        )}
+
+        {/* Bottom Spacing for Scroll */}
+        <div className="h-20"></div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
