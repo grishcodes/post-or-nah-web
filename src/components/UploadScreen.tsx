@@ -71,10 +71,10 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
         const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
 
         try {
-          // If running on localhost (Vite dev), call the local Express server (port 5000).
+          // Use unified API route. In dev, hit local server; in prod, use relative path.
           const baseApi = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api/feedback'
-            : '/api/feedback';
+            ? 'http://localhost:5000/api/route'
+            : '/api/route';
 
           const res = await fetch(baseApi, {
             method: 'POST',
@@ -442,3 +442,6 @@ function UploadForm({ onUpload }: { onUpload: (url: string) => void }) {
 
   return <input type="file" accept="image/*" onChange={handleFile} className="mb-2" />;
 }
+// (Note) A previous demo helper for posting base64 directly was removed
+// to avoid confusion; the component's handleSubmit now handles conversion
+// and posting to the unified /api/route endpoint.
