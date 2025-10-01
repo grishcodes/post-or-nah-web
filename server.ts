@@ -26,12 +26,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // HuggingFace configuration
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const HF_MODEL = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
+// Text-only model (fallback)
+const HF_TEXT_MODEL = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
+// Vision-language model (primary)
+const HF_VISION_MODEL = process.env.HUGGINGFACE_VISION_MODEL || 'Salesforce/blip2-flan-t5-xl';
 
 if (!HF_API_KEY) {
   console.warn('Warning: HUGGINGFACE_API_KEY not set. Set it in .env or environment to call HF.');
 } else {
-  console.log('Using HF model:', HF_MODEL);
+  console.log('Using HF models -> vision:', HF_VISION_MODEL, ', text:', HF_TEXT_MODEL);
 }
 
 // Health check endpoint
@@ -43,6 +46,7 @@ app.get('/api/health', (req: Request, res: Response) => {
       upload: 'Available at POST /api/upload'
     },
     hf_configured: !!HF_API_KEY,
+    hf_models: { vision: HF_VISION_MODEL, text: HF_TEXT_MODEL },
     cloudinary_configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY)
   });
 });
@@ -68,47 +72,85 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
 
     const dataUri = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
     
-    // Since image analysis requires special permissions, we'll use text-only generation
-    const prompt = `Rate a photo for the category: ${category}. Reply only with 'Post ✅' or 'Nah ❌' and one short suggestion.`;
-    
-    const body = {
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 50,
-        temperature: 0.7,
-        return_full_text: false
-      }
-    };
+    // Build a concise prompt that guides BLIP2 to produce a verdict + suggestion.
+    const prompt = `You are a social photo critic.
+Photo vibe tags: ${category || 'None'}.
+In one short line, reply as: Post ✅ or Nah ❌, then a brief suggestion.`;
 
     if (!HF_API_KEY) {
       return res.status(500).json({ error: 'HUGGINGFACE_API_KEY not configured in environment' });
     }
-
-    console.log('Calling HF text generation for category:', category);
-
-    const hfRes = await fetch(`https://api-inference.huggingface.co/models/${HF_MODEL}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${HF_API_KEY}`,
-        'Content-Type': 'application/json',
+    
+    // 1) Try the BLIP2 vision-language model with image + prompt
+    console.log('Calling HF vision model for category:', category);
+    const visionPayload = {
+      inputs: {
+        image: dataUri,
+        prompt,
       },
-      body: JSON.stringify(body),
-    });
+      parameters: {
+        max_new_tokens: 80,
+        temperature: 0.7,
+        return_full_text: false,
+      },
+    };
 
-    if (!hfRes.ok) {
-      const text = await hfRes.text();
-      console.error('Hugging Face error:', hfRes.status, text);
+    let hfJson: any = null;
+    let visionOk = false;
+    try {
+      const visRes = await fetch(`https://api-inference.huggingface.co/models/${HF_VISION_MODEL}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${HF_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(visionPayload),
+      });
 
-      // If HF fails due to permissions, fall back to a simple rule-based response
-      if (hfRes.status === 403 || text.includes('permissions') || text.includes('Inference Providers')) {
-        console.log('HF permissions issue detected, using fallback logic');
-        return generateFallbackResponse(category, res);
+      if (visRes.ok) {
+        hfJson = await visRes.json();
+        visionOk = true;
+      } else {
+        const t = await visRes.text();
+        console.warn('Vision model error:', visRes.status, t);
       }
-
-      return res.status(500).json({ error: 'Hugging Face inference error', details: text });
+    } catch (e) {
+      console.warn('Vision model call failed:', e);
     }
 
-    const hfJson = await hfRes.json();
+    // 2) If vision fails, try text-only model as a softer fallback
+    if (!visionOk) {
+      console.log('Falling back to HF text model for category:', category);
+      const textPayload = {
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 60,
+          temperature: 0.7,
+          return_full_text: false,
+        },
+      };
+
+      const txtRes = await fetch(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${HF_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(textPayload),
+      });
+
+      if (!txtRes.ok) {
+        const text = await txtRes.text();
+        console.error('HF text model error:', txtRes.status, text);
+        if (txtRes.status === 403 || text.includes('permissions') || text.includes('Inference Providers')) {
+          console.log('HF permissions issue detected, using fallback logic');
+          return generateFallbackResponse(category, res);
+        }
+        return res.status(500).json({ error: 'Hugging Face inference error', details: text });
+      }
+
+      hfJson = await txtRes.json();
+    }
 
     const extractGeneratedText = (payload: any): string | null => {
       if (!payload) return null;
@@ -129,7 +171,7 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
       try { return JSON.stringify(payload); } catch (e) { return null; }
     };
 
-    const rawText = extractGeneratedText(hfJson);
+  const rawText = extractGeneratedText(hfJson);
     const normalized = (rawText || '').trim();
 
     let verdict: string | null = null;
