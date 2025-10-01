@@ -9,6 +9,9 @@ import { v2 as cloudinary } from 'cloudinary';
 // Load environment variables
 dotenv.config(); // load root .env (if any)
 dotenv.config({ path: path.resolve(__dirname, 'src/.env') }); // load src/.env (if present)
+// Also try local env files commonly used in frontend projects
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 
 const app = express();
 app.use(cors());
@@ -198,6 +201,105 @@ In one short line, reply as: Post ✅ or Nah ❌, then a brief suggestion.`;
     return res.status(200).json({ verdict, suggestion, raw: hfJson });
   } catch (err) {
     console.error('Server /api/feedback error', err);
+    return res.status(500).json({ error: 'Inference failed', details: String(err) });
+  }
+});
+
+// Compatibility alias for clients expecting Next.js style /api/route
+app.post('/api/route', async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, category } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+
+    const dataUri = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+
+    const prompt = `You are a social photo critic.\nPhoto vibe tags: ${category || 'None'}.\nIn one short line, reply as: Post ✅ or Nah ❌, then a brief suggestion.`;
+
+    if (!HF_API_KEY) {
+      return res.status(500).json({ error: 'HUGGINGFACE_API_KEY not configured in environment' });
+    }
+
+    console.log('Calling HF vision model (alias /api/route) for category:', category);
+    const visionPayload = {
+      inputs: { image: dataUri, prompt },
+      parameters: { max_new_tokens: 80, temperature: 0.7, return_full_text: false },
+    };
+
+    let hfJson: any = null;
+    let visionOk = false;
+    try {
+      const visRes = await fetch(`https://api-inference.huggingface.co/models/${HF_VISION_MODEL}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(visionPayload),
+      });
+      if (visRes.ok) { hfJson = await visRes.json(); visionOk = true; }
+      else { console.warn('Vision model error:', visRes.status, await visRes.text()); }
+    } catch (e) { console.warn('Vision model call failed:', e); }
+
+    if (!visionOk) {
+      const textPayload = { inputs: prompt, parameters: { max_new_tokens: 60, temperature: 0.7, return_full_text: false } };
+      const txtRes = await fetch(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(textPayload),
+      });
+      if (!txtRes.ok) {
+        const text = await txtRes.text();
+        console.error('HF text model error:', txtRes.status, text);
+        if (txtRes.status === 403 || text.includes('permissions') || text.includes('Inference Providers')) {
+          console.log('HF permissions issue detected, using fallback logic');
+          return generateFallbackResponse(category, res);
+        }
+        return res.status(500).json({ error: 'Hugging Face inference error', details: text });
+      }
+      hfJson = await txtRes.json();
+    }
+
+    const extractGeneratedText = (payload: any): string | null => {
+      if (!payload) return null;
+      if (typeof payload === 'string') return payload;
+      if (Array.isArray(payload)) {
+        for (const item of payload) {
+          if (!item) continue;
+          if (typeof item === 'string') return item;
+          if ((item as any).generated_text) return (item as any).generated_text;
+          if ((item as any)?.generated_texts && Array.isArray((item as any).generated_texts)) return (item as any).generated_texts.join(' ');
+          if ((item as any)?.text) return (item as any).text;
+          if ((item as any)?.caption) return (item as any).caption;
+        }
+      }
+      if ((payload as any).generated_text) return (payload as any).generated_text;
+      if ((payload as any).text) return (payload as any).text;
+      if ((payload as any).caption) return (payload as any).caption;
+      try { return JSON.stringify(payload); } catch { return null; }
+    };
+
+    const rawText = extractGeneratedText(hfJson);
+    const normalized = (rawText || '').trim();
+    let verdict: string | null = null;
+    const lower = normalized.toLowerCase();
+    if (lower.includes('post')) verdict = 'Post ✅';
+    else if (lower.includes('nah')) verdict = 'Nah ❌';
+    else {
+      const positive = ['good','nice','aesthetic','beautiful','great','amazing','positive','lovely','stylish','cute','stunning','fire','lit'];
+      verdict = positive.some(w => lower.includes(w)) ? 'Post ✅' : 'Nah ❌';
+    }
+
+    let suggestion = '';
+    if (normalized) {
+      suggestion = normalized.replace(/post\s*✅|post|nah\s*❌|nah/ig, '').replace(/[\r\n]+/g, ' ').trim();
+      suggestion = suggestion.replace(/^[\:\-—–\s]+/, '').replace(/[\s\-—–:.]+$/,'').trim();
+      const s = suggestion.split(/\.|\n/).map(p => p.trim()).filter(Boolean);
+      suggestion = s.length ? s[0] : suggestion;
+    }
+    if (!suggestion) {
+      suggestion = verdict === 'Post ✅' ? 'Looks good — minor lighting or crop tweaks.' : 'Try brighter lighting or a clearer background.';
+    }
+
+    return res.status(200).json({ verdict, suggestion, raw: hfJson });
+  } catch (err) {
+    console.error('Server /api/route error', err);
     return res.status(500).json({ error: 'Inference failed', details: String(err) });
   }
 });
