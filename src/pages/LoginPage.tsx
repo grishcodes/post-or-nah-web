@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
 import { useEffect } from 'react';
 
-export default function LoginPage(): JSX.Element {
+export default function LoginPage(): React.JSX.Element {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const navigate = useNavigate();
