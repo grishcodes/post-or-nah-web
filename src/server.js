@@ -105,44 +105,86 @@ async function feedbackHandler(req, res) {
 					options: { wait_for_model: true }
 				}),
 			});
-			if (visRes.ok) { hfJson = await visRes.json(); visionOk = true; }
-			else { console.warn('Vision model error:', visRes.status, await safeText(visRes)); }
-		} catch (e) { console.warn('Vision model call failed:', e); }
+			if (visRes.ok) {
+				hfJson = await visRes.json();
+				visionOk = true;
+				console.log('[api] Vision model succeeded');
+			} else {
+				console.warn('[api] Vision model error:', visRes.status, await safeText(visRes));
+			}
+		} catch (e) {
+			console.warn('[api] Vision model call failed:', e);
+		}
 
 		// 2) If vision fails, try a text-only fallback
 		if (!visionOk) {
-			const txtRes = await fetchAny(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
-				body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 60, temperature: 0.7, return_full_text: false }, options: { wait_for_model: true } }),
-			});
-			if (!txtRes.ok) {
-				const t = await safeText(txtRes);
-				console.error('HF text model error:', txtRes.status, t);
-				if (txtRes.status === 403 || (t || '').toLowerCase().includes('permission') || (t || '').toLowerCase().includes('inference provider')) {
-					return generateFallback(category, res);
+			try {
+				console.log('[api] Falling back to text model');
+				const txtRes = await fetchAny(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
+					method: 'POST',
+					headers: { Authorization: `Bearer ${HF_API_KEY}`, 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						inputs: prompt,
+						parameters: { max_new_tokens: 60, temperature: 0.7, return_full_text: false },
+						options: { wait_for_model: true }
+					}),
+				});
+				if (txtRes.ok) {
+					hfJson = await txtRes.json();
+					console.log('[api] Text model succeeded');
+				} else {
+					const errorText = await safeText(txtRes);
+					console.error('[api] Text model error:', txtRes.status, errorText);
+					if (txtRes.status === 403 || (errorText || '').toLowerCase().includes('permission') || (errorText || '').toLowerCase().includes('inference provider')) {
+						console.log('[api] Using fallback due to permission/model issues');
+						return generateFallback(effectiveCategory, res);
+					}
+					// For other errors, still try to use fallback
+					console.log('[api] Using fallback due to text model failure');
+					return generateFallback(effectiveCategory, res);
 				}
-				return res.status(500).json({ error: 'Hugging Face inference error', details: t });
+			} catch (e) {
+				console.error('[api] Text model call failed:', e);
+				console.log('[api] Using fallback due to network/model issues');
+				return generateFallback(effectiveCategory, res);
 			}
-			hfJson = await txtRes.json();
 		}
 
-		const normalized = (extractGeneratedText(hfJson) || '').trim();
+		// Extract the generated text from the response
+		const generatedText = extractGeneratedText(hfJson);
+		console.log('[api] Generated text:', generatedText);
+
+		// If no text was generated from either model, use fallback
+		if (!generatedText || generatedText.trim().length === 0) {
+			console.log('[api] No generated text, using fallback');
+			return generateFallback(effectiveCategory, res);
+		}
+
+		const normalized = generatedText.trim();
 		let verdict = null;
 		const lower = normalized.toLowerCase();
+
+		// Check for explicit post/nah mentions first
 		if (lower.includes('post')) verdict = 'Post ✅';
 		else if (lower.includes('nah')) verdict = 'Nah ❌';
 		else {
+			// Fallback to sentiment analysis
 			const positive = ['good','nice','aesthetic','beautiful','great','amazing','positive','lovely','stylish','cute','stunning','fire','lit'];
 			verdict = positive.some(w => lower.includes(w)) ? 'Post ✅' : 'Nah ❌';
 		}
 
+		// Extract suggestion from the response
 		let suggestion = normalized.replace(/post\s*✅|post|nah\s*❌|nah/ig, '').replace(/[\r\n]+/g, ' ').trim();
 		suggestion = suggestion.replace(/^[\:\-—–\s]+/, '').replace(/[\s\-—–:.]+$/,'').trim();
 		const parts = suggestion.split(/\.|\n/).map(s => s.trim()).filter(Boolean);
 		suggestion = parts.length ? parts[0] : (verdict === 'Post ✅' ? 'Looks good — minor lighting or crop tweaks.' : 'Try brighter lighting or a clearer background.');
 
-		return res.status(200).json({ verdict, suggestion, raw: hfJson });
+		console.log('[api] Final verdict:', verdict, 'Suggestion:', suggestion);
+		return res.status(200).json({
+			verdict: verdict,
+			suggestion: suggestion,
+			raw: hfJson
+		});
 	} catch (err) {
 		console.error('Server /api/feedback error', err);
 		return res.status(500).json({ error: 'Inference failed', details: String(err) });

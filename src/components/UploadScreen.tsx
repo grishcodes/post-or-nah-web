@@ -73,11 +73,11 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
         const isLocalHost = host === 'localhost' || host === '127.0.0.1';
         const isViteDev = port === '5173' || port === '5174' || isLocalHost;
 
-        // Always try an explicit Vite base URL first, then proxy path, then direct backend call
+        // In dev mode, prioritize localhost:5000 first, then VITE_API_BASE, then proxy path
         const candidates = [
-          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined,
-          '/api/feedback', // Use Vite proxy first in dev
-          isViteDev ? 'http://localhost:5000/api/feedback' : undefined,
+          isViteDev ? 'http://localhost:5000/api/feedback' : undefined, // Dev: localhost first
+          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined, // Production env override
+          '/api/feedback', // Vite proxy fallback
         ].filter(Boolean) as string[];
 
         let lastErr: any = null;
