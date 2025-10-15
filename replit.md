@@ -28,8 +28,9 @@ The following environment variables are optional but needed for full backend fun
 - `CLOUDINARY_API_SECRET`
 
 **HuggingFace (for AI feedback):**
-- `HUGGINGFACE_API_KEY`
-- `HUGGINGFACE_MODEL` (optional, defaults to microsoft/DialoGPT-medium)
+- `HUGGINGFACE_API_KEY` (required for AI image analysis)
+- `HUGGINGFACE_VISION_MODEL` (optional, defaults to Salesforce/blip-image-captioning-large)
+- `HUGGINGFACE_TEXT_MODEL` (optional, defaults to microsoft/DialoGPT-medium)
 
 **Backend Port:**
 - `BACKEND_PORT` (optional, defaults to 3001)
@@ -66,6 +67,10 @@ The following environment variables are optional but needed for full backend fun
 - Set backend to run on port 3001
 - Fixed lucide-react source map corruption
 - Fixed TypeScript type issues in server.ts and main.tsx
+- **Updated AI feedback system to use Salesforce BLIP vision model** (October 15, 2025)
+  - Vision model analyzes image content first
+  - Falls back to text-only model if vision fails
+  - Improved error handling and logging
 
 ### Running the App
 
