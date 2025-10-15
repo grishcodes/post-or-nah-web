@@ -1,65 +1,43 @@
-const express = require('express');// Simple Express server to handle server-side Cloudinary uploads
-
-const cors = require('cors');const express = require('express');
-
-const dotenv = require('dotenv');const multer = require('multer');
-
+const express = require('express');
+const cors = require('cors');
 const dotenv = require('dotenv');
 
-dotenv.config();const streamifier = require('streamifier');
-
-const cloudinary = require('cloudinary').v2;
+dotenv.config();
 
 const app = express();
 
-app.use(cors());dotenv.config();
-
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-cloudinary.config({
-
-app.get('/api/feedback', (req, res) => {  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-
-  res.json({ message: 'Feedback API is running!', status: 'healthy' });  api_key: process.env.CLOUDINARY_API_KEY,
-
-});  api_secret: process.env.CLOUDINARY_API_SECRET,
-
+// Health check endpoint
+app.get('/api/feedback', (req, res) => {
+  res.json({ message: 'Feedback API is running!', status: 'healthy' });
 });
 
+// Feedback endpoint
 app.post('/api/feedback', async (req, res) => {
-
-  try {const app = express();
-
-    const { imageBase64, category } = req.body;const upload = multer({ storage: multer.memoryStorage() });
-
+  try {
+    const { imageBase64, category, imageUrl, vibes } = req.body;
     
-
-    if (!imageBase64) {app.post('/api/upload', upload.single('file'), (req, res) => {
-
-      return res.status(400).json({ error: 'imageBase64 is required' });  if (!req.file) return res.status(400).json({ error: 'No file provided' });
-
+    console.log('Processing feedback request:', { 
+      hasImageBase64: !!imageBase64, 
+      category, 
+      hasImageUrl: !!imageUrl, 
+      vibes 
+    });
+    
+    if (!imageBase64 && !imageUrl) {
+      return res.status(400).json({ error: 'Either imageBase64 or imageUrl is required' });
     }
 
-  const uploadStream = cloudinary.uploader.upload_stream({ folder: 'uploads' }, (error, result) => {
-
-    console.log('Processing feedback for category:', category);    if (error) return res.status(500).json({ error: error.message });
-
-    res.json({ secure_url: result.secure_url, public_id: result.public_id });
-
-    const verdict = Math.random() < 0.7 ? 'Post ✅' : 'Nah ❌';  });
-
+    // Determine verdict randomly for now
+    const verdict = Math.random() < 0.7 ? 'Post ✅' : 'Nah ❌';
     
-
-    const suggestions = {  streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
-
-      'Post ✅': [});
-
+    const suggestions = {
+      'Post ✅': [
         'Great aesthetic! Consider adjusting the lighting.',
-
-        'Nice composition! Maybe crop it tighter.',const port = process.env.PORT || 5000;
-
-        'Solid vibe! The colors work well.',app.listen(port, () => console.log(`Server listening on port ${port}`));
-
+        'Nice composition! Maybe crop it tighter.',
+        'Solid vibe! The colors work well.',
         'Looking good! Try a different angle next time.'
       ],
       'Nah ❌': [
@@ -73,7 +51,15 @@ app.post('/api/feedback', async (req, res) => {
     const suggestionList = suggestions[verdict];
     const suggestion = suggestionList[Math.floor(Math.random() * suggestionList.length)];
 
-    res.json({ verdict, suggestion, raw: { fallback: true, category } });
+    res.json({ 
+      verdict, 
+      suggestion, 
+      raw: { 
+        fallback: true, 
+        category: category || 'general',
+        vibes: vibes || 'unknown'
+      } 
+    });
 
   } catch (err) {
     console.error('Server error:', err);
@@ -83,5 +69,5 @@ app.post('/api/feedback', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}/api/feedback`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

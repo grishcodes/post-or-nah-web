@@ -10,7 +10,7 @@ import { Upload, Camera } from 'lucide-react';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
-  onPhotoUpload: (photo: File | string, vibes: string[]) => void;
+  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
   checksUsed: number;
 }
 
@@ -34,11 +34,8 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
 
   const handleVibeToggle = (vibe: string) => {
     setSelectedVibes(prev => {
-      if (prev.includes(vibe)) {
-        return prev.filter(v => v !== vibe);
-      } else if (prev.length < 2) {
-        return [...prev, vibe];
-      }
+      if (prev.includes(vibe)) return prev.filter(v => v !== vibe);
+      else if (prev.length < 2) return [...prev, vibe];
       return prev;
     });
   };
@@ -46,7 +43,6 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // New file uploaded -> clear previous analysis
       setVerdict(null);
       setSuggestion(null);
       setError(null);
@@ -56,94 +52,102 @@ export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
   };
 
   const handleSubmit = () => {
-    if (uploadedPhoto && selectedVibes.length > 0) {
-      // Clear previous states and show loading
-      setVerdict(null);
-      setSuggestion(null);
-      setError(null);
-      setRawResponse(null);
-      setLoading(true);
+    if (!uploadedPhoto || selectedVibes.length === 0) return;
 
-      // Convert file to base64 and POST to /api/feedback
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const result = reader.result as string; // data:<mime>;base64,....
-        const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
+    setVerdict(null);
+    setSuggestion(null);
+    setError(null);
+    setRawResponse(null);
+    setLoading(true);
 
-        try {
-          // If running on localhost (Vite dev), call the local Express server (port 5000).
-          const baseApi = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:5000/api/feedback'
-            : '/api/feedback';
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const result = reader.result as string; // data:<mime>;base64,....
+      const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
 
-          const res = await fetch(baseApi, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64, category: selectedVibes.join(', ') }),
-          });
+      try {
+        // Prefer explicit env override if provided
+        const envApiBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
+        const host = window.location.hostname;
+        const port = window.location.port;
+        const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+        const isViteDev = port === '5173' || port === '5174' || isLocalHost;
 
-          if (!res.ok) {
-            // Read the body once as text, then try to parse JSON from it
-            let details = null;
-            let bodyText = '';
-            try {
-              bodyText = await res.text();
-            } catch (e) {
-              bodyText = '';
+        // In dev mode, prioritize localhost:5000 first, then VITE_API_BASE, then proxy path
+        const candidates = [
+          isViteDev ? 'http://localhost:5000/api/feedback' : undefined, // Dev: localhost first
+          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined, // Production env override
+          '/api/feedback', // Vite proxy fallback
+        ].filter(Boolean) as string[];
+
+        let lastErr: any = null;
+        let json: any = null;
+        for (const url of candidates) {
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageBase64: base64, category: selectedVibes.join(', ') }),
+            });
+
+            if (!res.ok) {
+              let details: any = null;
+              let bodyText = '';
+              try { bodyText = await res.text(); } catch { bodyText = ''; }
+              try {
+                const jsonErr = bodyText ? JSON.parse(bodyText) : null;
+                details = jsonErr?.error || jsonErr?.details || (jsonErr ? JSON.stringify(jsonErr) : bodyText);
+              } catch {
+                details = bodyText || 'No response body';
+              }
+              const statusMsg = `API error ${res.status} at ${url}: ${details}`;
+              console.warn(statusMsg);
+              lastErr = new Error(statusMsg);
+              continue;
             }
-            try {
-              const jsonErr = bodyText ? JSON.parse(bodyText) : null;
-              details = jsonErr?.error || jsonErr?.details || (jsonErr ? JSON.stringify(jsonErr) : bodyText);
-            } catch (e) {
-              details = bodyText || 'No response body';
-            }
-            const statusMsg = `API error ${res.status}: ${details}`;
-            console.error(statusMsg);
-            throw new Error(statusMsg);
+
+            json = await res.json();
+            break; // success
+          } catch (e: any) {
+            console.warn(`Network error calling ${url}:`, e?.message || e);
+            lastErr = e;
+            continue;
           }
-
-          const json = await res.json();
-          // log raw response for debugging
-          console.log('Hugging Face raw response:', json);
-          setRawResponse(json);
-
-          // Expecting { verdict, suggestion, raw }
-          if (json?.verdict) setVerdict(json.verdict);
-          if (json?.suggestion) setSuggestion(json.suggestion);
-
-          // If API returned no verdict, attempt to parse from raw
-          if (!json?.verdict && json?.raw) {
-            const maybe = (json.raw?.generated_text || json.raw?.text || '') as string;
-            if (maybe) {
-              if (maybe.toLowerCase().includes('post')) setVerdict('Post ✅');
-              else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah ❌');
-            }
-          }
-
-          // Navigate to result view with the actual photo the user uploaded
-          // (Previously this was sending the JSON response, which broke ResultScreen.)
-          onPhotoUpload(uploadedPhoto, selectedVibes);
-        } catch (err: any) {
-          console.error('Feedback request failed', err);
-          // show specific error if available
-          const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
-
-          // Network-level failures (e.g. "Failed to fetch") are usually because the backend
-          // isn't reachable. Provide a clearer hint so it's easier to debug locally.
-          if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
-            setError(
-              `${msg} — backend unreachable. Make sure your API server is running.
-If you use Next.js API routes, run 'npm run dev' from the project root. If you use the optional Express server, run 'node server.js' and ensure PORT/CORS are configured.`
-            );
-          } else {
-            setError(msg);
-          }
-        } finally {
-          setLoading(false);
         }
-      };
-      reader.readAsDataURL(uploadedPhoto);
-    }
+
+        if (!json) throw lastErr || new Error('No API endpoint reachable');
+
+        console.log('Hugging Face raw response:', json);
+        setRawResponse(json);
+
+        if (json?.verdict) setVerdict(json.verdict);
+        if (json?.suggestion) setSuggestion(json.suggestion);
+
+        if (!json?.verdict && json?.raw) {
+          const maybe = (json.raw?.generated_text || json.raw?.text || '') as string;
+          if (maybe) {
+            if (maybe.toLowerCase().includes('post')) setVerdict('Post ✅');
+            else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah ❌');
+          }
+        }
+
+        onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion);
+      } catch (err: any) {
+        console.error('Feedback request failed', err);
+        const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+          setError(
+            `${msg} — backend unreachable. Make sure your API server is running.
+If you use Next.js API routes, run 'npm run dev' from the project root. If you use the optional Express server, run 'node server.js' and ensure PORT/CORS are configured.`
+          );
+        } else {
+          setError(msg);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsDataURL(uploadedPhoto);
   };
 
   return (
