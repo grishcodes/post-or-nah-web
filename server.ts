@@ -177,8 +177,8 @@ app.post('/api/upload', upload.single('file'), (req: Request, res: Response) => 
   (readableStream as any).pipe(uploadStream);
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const PORT = process.env.BACKEND_PORT || 3001;
+app.listen(PORT, 'localhost', () => {
   console.log(`Local feedback server listening on http://localhost:${PORT}`);
   console.log(`Available endpoints:`);
   console.log(`  - GET  http://localhost:${PORT}/api/health`);
