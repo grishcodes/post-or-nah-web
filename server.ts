@@ -1,317 +1,140 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import multer from 'multer';
-import streamifier from 'streamifier';
-import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import { VertexAI } from '@google-cloud/vertexai';
 
 // Load environment variables
-dotenv.config(); // load root .env (if any)
-dotenv.config({ path: path.resolve(__dirname, 'src/.env') }); // load src/.env (if present)
+dotenv.config();
 
 const app = express();
+const port = process.env.BACKEND_PORT || 3001;
+
+// Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // allow larger base64 payloads
+app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// --- Google Vertex AI Configuration ---
+const project = process.env.GCLOUD_PROJECT;
+const location = process.env.GCLOUD_LOCATION || 'us-central1';
+const modelName = process.env.GCLOUD_MODEL || 'gemini-1.5-flash';
 
-// Configure multer for file uploads
-const upload = multer({ storage: multer.memoryStorage() });
+// Ensure GOOGLE_APPLICATION_CREDENTIALS is set and file exists
+const defaultCredsPath = path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS || 'gcloud-credentials.json');
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = defaultCredsPath;
+}
+const credsExist = fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
-// HuggingFace configuration
-const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const HF_VISION_MODEL = process.env.HUGGINGFACE_VISION_MODEL || 'Salesforce/blip-image-captioning-large';
-const HF_TEXT_MODEL = process.env.HUGGINGFACE_TEXT_MODEL || 'microsoft/DialoGPT-medium';
-
-if (!HF_API_KEY) {
-  console.warn('Warning: HUGGINGFACE_API_KEY not set. Set it in .env or environment to call HF.');
+let vertexAI: VertexAI | null = null;
+if (!project) {
+  console.warn('⚠️  WARNING: GCLOUD_PROJECT not set in .env');
+} else if (!credsExist) {
+  console.warn('⚠️  WARNING: Credentials file not found at', process.env.GOOGLE_APPLICATION_CREDENTIALS);
 } else {
-  console.log('Using HF vision model:', HF_VISION_MODEL);
-  console.log('Using HF text fallback model:', HF_TEXT_MODEL);
+  vertexAI = new VertexAI({ project, location });
+  console.log('✅ Vertex AI configured');
+  console.log(`📍 Region: ${location}`);
+  console.log(`🤖 Using model: ${modelName}`);
 }
 
-// Helper function to extract generated text from various HuggingFace response formats
-function extractGeneratedText(payload: any): string {
-  if (!payload) return '';
-  if (typeof payload === 'string') return payload;
-  if (Array.isArray(payload)) {
-    for (const item of payload) {
-      if (!item) continue;
-      if (typeof item === 'string') return item;
-      if (item.generated_text) return item.generated_text;
-      if (item?.generated_texts && Array.isArray(item.generated_texts)) return item.generated_texts.join(' ');
-      if (item?.text) return item.text;
-      if (item?.caption) return item.caption;
-    }
+// --- Function to get feedback from Vertex AI Gemini ---
+async function getVertexFeedback(imageBase64: string, category?: string) {
+  if (!vertexAI) {
+    return {
+      verdict: 'Error ⚠️',
+      suggestion: 'Vertex AI not configured. Check GCLOUD_* env vars and credentials JSON.',
+      raw: 'Vertex AI not initialized',
+    };
   }
-  if (payload.generated_text) return payload.generated_text;
-  if (payload.text) return payload.text;
-  if (payload.caption) return payload.caption;
-  return '';
-}
 
-// Health check endpoint
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'Server is healthy',
-    services: {
-      feedback: 'Available at POST /api/feedback',
-      upload: 'Available at POST /api/upload'
-    },
-    hf_configured: !!HF_API_KEY,
-    cloudinary_configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY)
-  });
-});
-
-// Feedback API endpoint
-app.get('/api/feedback', (req: Request, res: Response) => {
-  res.json({
-    message: 'Feedback API is running!',
-    method: 'This endpoint expects POST requests with imageBase64 and category in the body',
-    example: {
-      imageBase64: 'base64_encoded_image_data',
-      category: 'Aesthetic vibe, Classy core'
-    },
-    status: 'Server is healthy',
-    hf_configured: !!HF_API_KEY
-  });
-});
-
-app.post('/api/feedback', async (req: Request, res: Response) => {
   try {
-    const { imageBase64, category } = req.body;
-    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    // Remove any data URI prefix if present
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    if (!HF_API_KEY) {
-      return res.status(500).json({ error: 'HUGGINGFACE_API_KEY not configured in environment' });
-    }
+    console.log('📤 Calling Vertex AI Gemini (vision)...');
+    console.log(`🏷️  Category: ${category || 'none'}`);
 
-    // Ensure we have the full data URI format
-    const dataUri = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+    const categoryPrompt = category ? `This photo should match a "${category}" aesthetic. ` : '';
+    const prompt = `${categoryPrompt}Analyze this photo and decide: should it be posted on social media or not?\n` +
+      `Give a short verdict ("Post" or "Nah") and a brief 1-sentence suggestion.\n` +
+      `Focus on: lighting, composition, clarity, and overall vibe. Keep it casual and friendly.`;
 
-    console.log('=== Vision Model Attempt ===');
-    console.log('Calling HF vision model:', HF_VISION_MODEL);
-    console.log('Category:', category || 'Not provided');
+  const model = vertexAI.getGenerativeModel({ model: modelName });
 
-    // Step 1: Try vision model first
-    let visionDescription = '';
-    let visionModelSuccess = false;
-    
-    try {
-      // BLIP model expects inputs with image and optional text prompt
-      const visionPayload = category 
-        ? { 
-            inputs: {
-              image: dataUri,
-              text: `Describe this image for ${category} category`
-            }
-          }
-        : { inputs: dataUri };
-
-      const visionRes = await fetch(`https://api-inference.huggingface.co/models/${HF_VISION_MODEL}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${HF_API_KEY}`,
-          'Content-Type': 'application/json',
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: base64Data,
+              },
+            },
+          ],
         },
-        body: JSON.stringify(visionPayload),
-      });
-
-      if (visionRes.ok) {
-        const visionJson = await visionRes.json();
-        console.log('Vision model raw response:', JSON.stringify(visionJson, null, 2));
-
-        // Extract generated text from vision model
-        visionDescription = extractGeneratedText(visionJson);
-        if (visionDescription) {
-          visionModelSuccess = true;
-          console.log('Vision model description:', visionDescription);
-        } else {
-          console.log('Vision model returned no text');
-        }
-      } else {
-        const errorText = await visionRes.text();
-        console.error('Vision model error:', visionRes.status, errorText);
-      }
-    } catch (visionErr) {
-      console.error('Vision model exception:', visionErr);
-    }
-
-    // Step 2: Generate verdict based on vision description + category
-    let verdict = '';
-    let rawResponse: any = {};
-
-    if (visionModelSuccess && visionDescription) {
-      // Use the vision description to make a decision
-      const categoryText = category ? ` Category: ${category}.` : '';
-      const prompt = `Image shows: ${visionDescription}.${categoryText} Should I post this? Reply with 'Post ✅' or 'Nah ❌' and a brief suggestion.`;
-      
-      console.log('=== Text Model with Vision Context ===');
-      console.log('Prompt:', prompt);
-
-      try {
-        const textRes = await fetch(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${HF_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              max_new_tokens: 100,
-              temperature: 0.7,
-              return_full_text: false
-            }
-          }),
-        });
-
-        if (textRes.ok) {
-          const textJson = await textRes.json();
-          console.log('Text model raw response:', JSON.stringify(textJson, null, 2));
-          rawResponse = { vision: visionDescription, text: textJson };
-          verdict = extractGeneratedText(textJson) || visionDescription;
-        } else {
-          console.log('Text model failed, using vision description as verdict');
-          rawResponse = { vision: visionDescription };
-          verdict = visionDescription;
-        }
-      } catch (textErr) {
-        console.error('Text model exception:', textErr);
-        rawResponse = { vision: visionDescription };
-        verdict = visionDescription;
-      }
-    } else {
-      // Step 3: Fallback to text-only if vision failed
-      console.log('=== Fallback to Text-Only Model ===');
-      const categoryText = category ? ` for the category: ${category}` : '';
-      const prompt = `Rate a photo${categoryText}. Reply only with 'Post ✅' or 'Nah ❌' and one short suggestion.`;
-      
-      try {
-        const textRes = await fetch(`https://api-inference.huggingface.co/models/${HF_TEXT_MODEL}`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${HF_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              max_new_tokens: 100,
-              temperature: 0.7,
-              return_full_text: false
-            }
-          }),
-        });
-
-        if (textRes.ok) {
-          const textJson = await textRes.json();
-          console.log('Text fallback raw response:', JSON.stringify(textJson, null, 2));
-          rawResponse = textJson;
-          verdict = extractGeneratedText(textJson) || 'No verdict returned';
-        } else {
-          const errorText = await textRes.text();
-          console.error('Text fallback error:', textRes.status, errorText);
-          
-          // Final fallback to rule-based response
-          return generateFallbackResponse(category, res);
-        }
-      } catch (err) {
-        console.error('Text fallback exception:', err);
-        return generateFallbackResponse(category, res);
-      }
-    }
-
-    // If still no verdict, return error
-    if (!verdict) {
-      return res.status(200).json({ 
-        verdict: 'No verdict returned', 
-        suggestion: '',
-        raw: rawResponse 
-      });
-    }
-
-    // Extract suggestion from verdict
-    let suggestion = '';
-    const normalized = verdict.trim();
-    
-    // Try to extract suggestion text
-    suggestion = normalized.replace(/post\s*✅|post|nah\s*❌|nah/ig, '').replace(/[\r\n]+/g, ' ').trim();
-    suggestion = suggestion.replace(/^[\:\-—–\s]+/, '').replace(/[\s\-—–:.]+$/,'').trim();
-    const sentences = suggestion.split(/\.|\n/).map(p => p.trim()).filter(Boolean);
-    suggestion = sentences.length ? sentences[0] : suggestion;
-
-    console.log('=== Final Response ===');
-    console.log('Verdict:', verdict);
-    console.log('Suggestion:', suggestion);
-
-    return res.status(200).json({ 
-      verdict, 
-      suggestion: suggestion || '',
-      raw: rawResponse 
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 256,
+      },
     });
-  } catch (err) {
-    console.error('Server /api/feedback error:', err);
-    return res.status(500).json({ error: 'Inference failed', details: String(err) });
+
+    const text = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const responseText = text.trim();
+    console.log('✅ Vertex response:', responseText);
+
+    const lower = responseText.toLowerCase();
+    const isPost = lower.includes('post') && !lower.includes('nah');
+    const verdict = isPost ? 'Post ✅' : 'Nah ❌';
+
+    let suggestion = responseText;
+    if (suggestion.length > 150) suggestion = suggestion.substring(0, 147) + '...';
+
+    return {
+      verdict,
+      suggestion,
+      raw: result.response,
+    };
+  } catch (error) {
+    console.error('❌ Error calling Vertex AI:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      verdict: 'Error ⚠️',
+      suggestion: 'Could not analyze image. Verify Vertex AI API enabled, region/model, and service account roles.',
+      raw: msg,
+    };
   }
-});
-
-// Upload endpoint for Cloudinary
-app.post('/api/upload', upload.single('file'), (req: Request, res: Response) => {
-  if (!req.file) return res.status(400).json({ error: 'No file provided' });
-
-  const uploadStream = cloudinary.uploader.upload_stream(
-    { folder: 'uploads' }, 
-    (error, result) => {
-      if (error) return res.status(500).json({ error: error.message });
-      res.json({ secure_url: result?.secure_url, public_id: result?.public_id });
-    }
-  );
-
-  // Create a readable stream and pipe it to cloudinary
-  const readableStream = streamifier.createReadStream(req.file.buffer);
-  (readableStream as any).pipe(uploadStream);
-});
-
-const PORT = process.env.BACKEND_PORT ? parseInt(process.env.BACKEND_PORT) : 3001;
-app.listen(PORT, 'localhost', () => {
-  console.log(`Local feedback server listening on http://localhost:${PORT}`);
-  console.log(`Available endpoints:`);
-  console.log(`  - GET  http://localhost:${PORT}/api/health`);
-  console.log(`  - GET  http://localhost:${PORT}/api/feedback`);
-  console.log(`  - POST http://localhost:${PORT}/api/feedback`);
-  console.log(`  - POST http://localhost:${PORT}/api/upload`);
-});
-
-// Fallback function when HF API fails due to permissions
-function generateFallbackResponse(category: string | undefined, res: Response) {
-  const responses: Record<string, { verdict: string; suggestion: string }> = {
-    'Aesthetic vibe': { verdict: 'Post ✅', suggestion: 'Great aesthetic choice! Consider soft lighting for even better vibes.' },
-    'Classy core': { verdict: 'Post ✅', suggestion: 'Very classy! A neutral background could elevate it further.' },
-    'Rizz core': { verdict: 'Post ✅', suggestion: 'Solid rizz energy! Good confidence in the shot.' },
-    'Matcha core': { verdict: 'Post ✅', suggestion: 'Perfect matcha vibes! The green tones work well.' },
-    'Bad bih vibe': { verdict: 'Post ✅', suggestion: 'Fierce energy! Great confidence and style.' }
-  };
-
-  // Pick response based on category, or random if not found
-  const categoryKey = category ? Object.keys(responses).find(key => category.includes(key)) : undefined;
-  const response = categoryKey ? responses[categoryKey] : responses['Aesthetic vibe'];
-
-  // Add some randomness to verdicts (70% Post, 30% Nah)
-  const finalVerdict = Math.random() < 0.7 ? response.verdict : 'Nah ❌';
-  const finalSuggestion = finalVerdict === 'Nah ❌' ?
-    'Try better lighting or a different angle to enhance the vibe.' :
-    response.suggestion;
-
-  return res.status(200).json({
-    verdict: finalVerdict,
-    suggestion: finalSuggestion,
-    raw: { fallback: true, category: category || 'none', generated_text: `${finalVerdict} ${finalSuggestion}` }
-  });
 }
+
+// API Endpoints
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Backend is running' });
+});
+
+app.post('/api/feedback', async (req, res) => {
+  const { imageBase64, category } = req.body;
+
+  if (!imageBase64) {
+    return res.status(400).json({ error: 'imageBase64 is a required field.' });
+  }
+
+  const pureBase64 = imageBase64.split(',').pop();
+
+  if (!pureBase64) {
+      return res.status(400).json({ error: 'Invalid base64 string format.' });
+  }
+
+  console.log('Received image for feedback. Calling Vertex AI Gemini...');
+  const feedback = await getVertexFeedback(pureBase64, category);
+  res.status(200).json(feedback);
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`🚀 Backend server running at http://localhost:${port}`);
+});
