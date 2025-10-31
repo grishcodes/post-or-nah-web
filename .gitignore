@@ -46,3 +46,6 @@ coverage/
 
 # Ignore uploaded images in development (if any)
 uploads/
+
+/dist-server
+gcloud-credentials.json

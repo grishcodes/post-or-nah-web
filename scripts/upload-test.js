@@ -1,3 +1,4 @@
+// DEPRECATED: Old test script for a removed /api/upload endpoint. Safe to delete.
 const fs = require('fs');
 const axios = require('axios');
 const FormData = require('form-data');
