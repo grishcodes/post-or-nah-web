@@ -7,7 +7,7 @@ A web application that helps you decide whether to post your photos on social me
 - **AI Photo Analysis**: Upload photos and get "Post ✅" or "Nah ❌" verdicts with suggestions
 - **Vibe Categories**: Aesthetic vibe, Classy core, Rizz core, Matcha core, Bad bih vibe
 - **Google Authentication**: Sign in with Google via Firebase
-- **Free Tier**: 15 free photo checks per month
+- **Free Tier**: 3 free photo checks per month
 - **Premium Upgrade**: Unlimited checks for $9/month (demo mode)
 
 ## 🛠️ Tech Stack
@@ -124,7 +124,7 @@ Visit **http://localhost:5000** in your browser.
 5. Backend calls **Gemini API** with image and prompt
 6. Gemini analyzes photo and returns verdict + suggestion
 7. **ResultScreen** displays AI feedback
-8. User can try another photo or upgrade to premium after 15 checks
+8. User can try another photo or upgrade to premium after 3 checks
 
 ### API Flow
 ```

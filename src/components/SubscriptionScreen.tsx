@@ -49,7 +49,7 @@ export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenPro
           transition={{ delay: 0.4 }}
         >
           <h1 className="text-3xl text-white">You've used your</h1>
-          <h2 className="text-4xl text-yellow-300">15 free checks</h2>
+          <h2 className="text-4xl text-yellow-300">3 free checks</h2>
           <h3 className="text-2xl text-white">this month</h3>
           
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mt-6">

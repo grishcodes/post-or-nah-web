@@ -11,10 +11,12 @@ import { Upload, Camera } from 'lucide-react';
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
   onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
-  checksUsed: number;
+  credits: number;
+  currentPlan: string;
 }
 
 const VIBE_CATEGORIES = [
+  'General vibe',
   'Aesthetic vibe',
   'Classy core',
   'Rizz core',
@@ -22,7 +24,7 @@ const VIBE_CATEGORIES = [
   'Bad bih vibe'
 ];
 
-export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
+export function UploadScreen({ onPhotoUpload, credits, currentPlan }: UploadScreenProps) {
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
   const [verdict, setVerdict] = useState<string | null>(null);
@@ -187,7 +189,16 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
               />
             </div>
           </div>
-          <p className="text-blue-100 text-lg">Check #{checksUsed + 1} of 15 free</p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-blue-100 text-lg font-semibold">
+              {credits} {credits === 1 ? 'credit' : 'credits'} remaining
+            </p>
+            {currentPlan !== 'Free' && (
+              <p className="text-blue-200 text-sm">
+                {currentPlan} Plan
+              </p>
+            )}
+          </div>
         </motion.div>
 
         {/* Upload Section */}
