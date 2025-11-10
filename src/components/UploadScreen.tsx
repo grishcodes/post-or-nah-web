@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
 import newLogo from '../assets/1.png'; 
 import newLogo2 from '../assets/2.png';
@@ -7,32 +7,47 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Upload, Camera } from 'lucide-react';
+import { ImageWithFallback } from './figma/ImageWithFallback';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
   onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
-  credits: number;
-  currentPlan: string;
+  checksUsed: number;
 }
 
 const VIBE_CATEGORIES = [
-  'General vibe',
-  'Aesthetic vibe',
+  'IG Story vibe',
+  'Aesthetic core',
   'Classy core',
   'Rizz core',
   'Matcha core',
   'Bad bih vibe'
 ];
 
-export function UploadScreen({ onPhotoUpload, credits, currentPlan }: UploadScreenProps) {
+export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Prevent the browser from dropping/opening images on the page (which can overlay content)
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('dragover', prevent as any);
+    window.addEventListener('drop', prevent as any);
+    return () => {
+      window.removeEventListener('dragover', prevent as any);
+      window.removeEventListener('drop', prevent as any);
+    };
+  }, []);
 
   const handleVibeToggle = (vibe: string) => {
     setSelectedVibes(prev => {
@@ -50,6 +65,15 @@ export function UploadScreen({ onPhotoUpload, credits, currentPlan }: UploadScre
       setError(null);
       setRawResponse(null);
       setUploadedPhoto(file);
+
+      // Create a bounded preview URL
+      try {
+        const url = URL.createObjectURL(file);
+        setPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return url;
+        });
+      } catch {}
     }
   };
 
@@ -153,7 +177,7 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800">
+  <div className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800" onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); }}>
       {/* Top-right auth controls */}
       <div className="relative">
         <div className="absolute top-4 right-4 z-10">
@@ -189,16 +213,7 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
               />
             </div>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-blue-100 text-lg font-semibold">
-              {credits} {credits === 1 ? 'credit' : 'credits'} remaining
-            </p>
-            {currentPlan !== 'Free' && (
-              <p className="text-blue-200 text-sm">
-                {currentPlan} Plan
-              </p>
-            )}
-          </div>
+          <p className="text-blue-100 text-lg">Check #{Math.min(checksUsed + 1, 3)} of 3 free</p>
         </motion.div>
 
         {/* Upload Section */}
@@ -225,11 +240,20 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
 
           <Button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+            className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
             variant="ghost"
           >
             {uploadedPhoto ? (
               <div className="flex flex-col items-center space-y-3">
+                {previewUrl && (
+                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center">
+                    <img
+                      src={previewUrl}
+                      alt="Selected preview"
+                      className="w-full h-full object-cover pointer-events-none select-none"
+                    />
+                  </div>
+                )}
                 <Camera className="w-10 h-10" />
                 <span className="text-xl font-medium">Photo Selected ✓</span>
                 <span className="text-sm text-blue-100 px-4 py-1 bg-white/10 rounded-full">
@@ -244,11 +268,12 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
               </div>
             )}
           </Button>
+
         </motion.div>
 
         {/* Vibe Selection */}
         <motion.div
-          className="mb-8"
+          className="mb-8 relative z-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
@@ -408,12 +433,26 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
 function AuthControls() {
   const { user, signOut } = useAuth();
   if (!user) return null;
+  const initials = (user.displayName || 'U')
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part[0]!.toUpperCase())
+    .slice(0, 2)
+    .join('');
 
   return (
     <div className="flex items-center gap-3 p-2">
-      {user.photoURL && (
-        // eslint-disable-next-line jsx-a11y/img-redundant-alt
-        <img src={user.photoURL} alt="User avatar" className="w-10 h-10 rounded-full shadow-sm" />
+      {user.photoURL ? (
+        <ImageWithFallback
+          src={user.photoURL}
+          alt={user.displayName || 'User avatar'}
+          className="w-10 h-10 rounded-full shadow-sm object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="w-10 h-10 rounded-full shadow-sm bg-white/20 backdrop-blur-sm flex items-center justify-center text-xs font-semibold text-white/80">
+          {initials}
+        </div>
       )}
       <div className="flex items-center gap-2">
         <span className="text-white text-sm hidden sm:inline">{user.displayName}</span>

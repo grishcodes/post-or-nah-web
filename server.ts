@@ -39,29 +39,12 @@ if (!project) {
   console.log(`🤖 Using model: ${modelName}`);
 }
 
-// --- Function to get feedback from Vertex AI Gemini ---
-async function getVertexFeedback(imageBase64: string, category?: string) {
-  if (!vertexAI) {
-    return {
-      verdict: 'Error ⚠️',
-      suggestion: 'Vertex AI not configured. Check GCLOUD_* env vars and credentials JSON.',
-      raw: 'Vertex AI not initialized',
-    };
-  }
+// --- Vibe-specific prompt suite (final) ---
+const vibePromptsFinal = {
+  general: `
+  **ROLE & GOAL:** You are my best friend, and I've sent you a photo to get your honest opinion before I post it as an IG Story. Your goal is to give me a straightforward, helpful Gen Z-style response on whether it's story-worthy. Be friendly, supportive, but keep it real.
 
-  try {
-    // Remove any data URI prefix if present
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
-    console.log('📤 Calling Vertex AI Gemini (vision)...');
-    console.log(`🏷️  Category: ${category || 'none'}`);
-
-    // --- Category-specific prompt suite ---
-    const vibePromptsFinal: Record<string, string> = {
-      general: `
-  **ROLE & GOAL:** You are my best friend, and I've sent you a photo to get your honest opinion before I post it. Your goal is to give me a straightforward, helpful Gen Z-style response on whether it's a good picture in general. Be friendly, supportive, but keep it real.
-
-  **AESTHETIC TO JUDGE:** "General Vibe" - This isn't about a specific trend. It's about the fundamentals: Does this photo look good? Is it clear, well-lit, and does the person in it look natural?
+  **AESTHETIC TO JUDGE:** "IG Story Vibe" - Not a specific trend, just the fundamentals: quick, casual, and clean. Does this photo look good at a glance? Is it clear, well-lit, and does the person in it look natural?
 
   **ANALYSIS CRITERIA:**
   - **Clarity & Focus:** Is the subject sharp? Is the photo blurry or pixelated?
@@ -83,10 +66,10 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
 
-      aesthetic: `
+  aesthetic: `
   **ROLE & GOAL:** You are my artsy best friend with a perfectly curated feed. I need your opinion on whether this photo fits the "Aesthetic" vibe for social media. Be chill, creative, and speak like an effortlessly stylish influencer.
 
-  **AESTHETIC TO JUDGE:** "Aesthetic Vibe" - This is about the mood. Think calm, minimal, visually pleasing, and slightly moody. It's less about a perfect smile and more about the overall composition and color story.
+  **AESTHETIC TO JUDGE:** "Aesthetic Core" - This is about the mood. Think calm, minimal, visually pleasing, and slightly moody. It's less about a perfect smile and more about the overall composition and color story.
 
   **ANALYSIS CRITERIA:**
   - **Color Palette:** Are the colors cohesive and pleasing (e.g., muted, pastel, monochrome)?
@@ -108,7 +91,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
 
-      classyCore: `
+  classyCore: `
   **ROLE & GOAL:** You are my sophisticated best friend who understands timeless style. I've sent you a photo and need to know if it has that "Classy Core" elegance before I post. Your tone should be graceful and confident.
 
   **AESTHETIC TO JUDGE:** "Classy Core" - This means the photo looks elegant, timeless, and put-together. Think quiet luxury, poise, and high quality. It's about looking effortlessly chic.
@@ -133,7 +116,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
 
-      rizzCore: `
+  rizzCore: `
   **ROLE & GOAL:** You are my best friend, and I've sent you a photo to get your honest opinion before I post it. Your goal is to give me a short, hype, Gen Z-style response telling me if the picture has that confident, cool "Rizz" energy. Be fun, a little flirty, and keep it real.
 
   **AESTHETIC TO JUDGE:** "Rizz Core" - This means the photo should scream confidence, charisma, and effortless cool. The person should look magnetic and in control.
@@ -158,7 +141,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
 
-      matchaCore: `
+  matchaCore: `
   **ROLE & GOAL:** You are my chill, cozy best friend who loves cafes and calm vibes. I sent you a pic and need to know if it fits the "Matcha Core" aesthetic. Your tone should be relaxed, peaceful, and warm.
 
   **AESTHETIC TO JUDGE:** "Matcha Core" - This photo should feel calm, cozy, and earthy. Think soft light, green/neutral tones, gentle poses, and a peaceful, minimalist vibe.
@@ -183,7 +166,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
 
-      badBihVibe: `
+  badBihVibe: `
   **ROLE & GOAL:** You are my ultimate hype-bestie. I need you to tell me if this picture is giving "Bad Bih Vibe" and is 100% post-worthy. Your tone needs to be fun, confident, and unapologetically sassy. Hype me up!
 
   **AESTHETIC TO JUDGE:** "Bad Bih Vibe" - This is all about bold, confident, main-character energy. Power poses, fierce expressions, and looking like you own the place. It's unapologetic and powerful.
@@ -207,37 +190,70 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   **YOUR TASK:**
   Now, analyze the user's photo based on all the rules above and provide your JSON response.
   `,
-    };
+} as const;
 
-    const normalize = (s: string) => s.trim().toLowerCase();
-    const mapLabelToKey = (label: string): keyof typeof vibePromptsFinal => {
-      const l = normalize(label);
-      if (l.startsWith('general')) return 'general';
-      if (l.startsWith('aesthetic')) return 'aesthetic';
-      if (l.startsWith('classy')) return 'classyCore';
-      if (l.startsWith('rizz')) return 'rizzCore';
-      if (l.startsWith('matcha')) return 'matchaCore';
-      if (l.startsWith('bad bih') || l.startsWith('bad bih vibe')) return 'badBihVibe';
+function normalizeVibeKey(category?: string): keyof typeof vibePromptsFinal | null {
+  if (!category) return 'general';
+  const first = category.split(',')[0].trim().toLowerCase();
+  switch (first) {
+    case 'general vibe':
+    case 'ig story vibe':
       return 'general';
+    case 'aesthetic vibe':
+    case 'aesthetic core':
+      return 'aesthetic';
+    case 'classy core':
+      return 'classyCore';
+    case 'rizz core':
+      return 'rizzCore';
+    case 'matcha core':
+      return 'matchaCore';
+    case 'bad bih vibe':
+      return 'badBihVibe';
+    default:
+      return 'general';
+  }
+}
+
+function mapVerdictToUI(verdictRaw: string): string {
+  const v = verdictRaw.trim().toUpperCase();
+  if (v === 'POST IT') return 'Post ✅';
+  if (v === 'NAH') return 'Nah ❌';
+  if (v === 'TWEAK IT') return 'Tweak ✏️';
+  // Fallback: try to infer
+  if (v.includes('POST')) return 'Post ✅';
+  if (v.includes('NAH')) return 'Nah ❌';
+  return verdictRaw;
+}
+
+// --- Function to get feedback from Vertex AI Gemini ---
+async function getVertexFeedback(imageBase64: string, category?: string) {
+  if (!vertexAI) {
+    return {
+      verdict: 'Error ⚠️',
+      suggestion: 'Vertex AI not configured. Check GCLOUD_* env vars and credentials JSON.',
+      raw: 'Vertex AI not initialized',
     };
+  }
 
-    const vibes = (category || '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-    const chosenKey = vibes.length ? mapLabelToKey(vibes[0]) : 'general';
-    const prompt = vibePromptsFinal[chosenKey];
+  try {
+    // Remove any data URI prefix if present
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    console.log(`🧠 Using prompt for: ${chosenKey}`);
+    console.log('📤 Calling Vertex AI Gemini (vision)...');
+    console.log(`🏷️  Category: ${category || 'none'}`);
 
-  const model = vertexAI.getGenerativeModel({ model: modelName });
+    const key = normalizeVibeKey(category || undefined);
+    const selectedPrompt = vibePromptsFinal[key ?? 'general'];
+
+    const model = vertexAI.getGenerativeModel({ model: modelName });
 
     const result = await model.generateContent({
       contents: [
         {
           role: 'user',
           parts: [
-            { text: prompt },
+            { text: selectedPrompt },
             {
               inlineData: {
                 mimeType: 'image/jpeg',
@@ -257,54 +273,44 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
     const responseText = text.trim();
     console.log('✅ Vertex response:', responseText);
 
-    // Try to parse JSON per the prompt contract
-    const tryParseJson = (s: string): any | null => {
-      try {
-        return JSON.parse(s);
-      } catch {
-        // Try to extract JSON object substring
-        const start = s.indexOf('{');
-        const end = s.lastIndexOf('}');
-        if (start !== -1 && end !== -1 && end > start) {
-          try {
-            return JSON.parse(s.slice(start, end + 1));
-          } catch {
-            return null;
-          }
-        }
-        return null;
+    // Try to parse structured JSON { verdict, comment }
+    let parsed: any = null;
+    try {
+      // Strip code fences if present
+      const noFences = responseText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+      // Extract first JSON object if wrapped
+      const start = noFences.indexOf('{');
+      const end = noFences.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        const jsonSlice = noFences.slice(start, end + 1);
+        parsed = JSON.parse(jsonSlice);
       }
-    };
+    } catch {
+      parsed = null;
+    }
 
-    const parsed = tryParseJson(responseText);
-    if (parsed && typeof parsed === 'object' && ('verdict' in parsed) && ('comment' in parsed)) {
-      const v = String(parsed.verdict || '').toUpperCase();
-      let verdict: string = 'Nah ❌';
-      if (v.includes('POST')) verdict = 'Post ✅';
-      else if (v.includes('TWEAK')) verdict = 'Tweak ✏️';
-
+    if (parsed && (parsed.verdict || parsed.comment)) {
+      const mappedVerdict = mapVerdictToUI(String(parsed.verdict || ''));
       let suggestion = String(parsed.comment || '').trim();
-      if (suggestion.length > 300) suggestion = suggestion.slice(0, 297) + '...';
-
+      if (suggestion.length > 150) suggestion = suggestion.substring(0, 147) + '...';
       return {
-        verdict,
+        verdict: mappedVerdict,
         suggestion,
         raw: result.response,
       };
     }
 
-    // Fallback: heuristic classification
+    // Fallback to old heuristic if JSON parse failed
     const lower = responseText.toLowerCase();
     const isPost = lower.includes('post') && !lower.includes('nah');
-    const verdict = isPost ? 'Post ✅' : (lower.includes('tweak') ? 'Tweak ✏️' : 'Nah ❌');
+    const verdict = isPost ? 'Post ✅' : 'Nah ❌';
     let suggestion = responseText;
-    if (suggestion.length > 300) suggestion = suggestion.substring(0, 297) + '...';
-
-    return {
-      verdict,
-      suggestion,
-      raw: result.response,
-    };
+    if (suggestion.length > 150) suggestion = suggestion.substring(0, 147) + '...';
+    return { verdict, suggestion, raw: result.response };
   } catch (error) {
     console.error('❌ Error calling Vertex AI:', error);
     const msg = error instanceof Error ? error.message : String(error);

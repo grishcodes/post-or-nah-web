@@ -15,7 +15,7 @@ interface ResultScreenProps {
 // Mock AI responses based on vibes
 const generateAIResponse = (vibes: string[]) => {
   const responses = {
-    'Aesthetic vibe': {
+  'Aesthetic core': {
       positive: { verdict: 'Post ✅', suggestions: ['Perfect lighting and composition!', 'This fits the aesthetic perfectly'] },
       negative: { verdict: 'Nah ❌', suggestions: ['Try softer lighting', 'Add more visual elements'] }
     },
@@ -37,7 +37,7 @@ const generateAIResponse = (vibes: string[]) => {
     }
   };
 
-  const primaryVibe = vibes[0] as keyof typeof responses;
+  const primaryVibe = (vibes[0] === 'Aesthetic vibe' ? 'Aesthetic core' : vibes[0]) as keyof typeof responses;
   const isPositive = Math.random() > 0.3; // 70% chance of positive
   
   return responses[primaryVibe] ? 
