@@ -1,11 +1,11 @@
 # 📸 Post or Nah Web App
 
-A web application that helps you decide whether to post your photos on social media. Get instant AI-powered feedback based on different aesthetic vibes using Google Vertex AI (Gemini).
+A web application that helps you decide whether to post your photos on social media. Get instant AI-powered feedback based on different aesthetic cores using Google Vertex AI (Gemini).
 
 ## 🎯 Features
 
 - **AI Photo Analysis**: Upload photos and get "Post ✅" or "Nah ❌" verdicts with suggestions
-- **Vibe Categories**: Aesthetic vibe, Classy core, Rizz core, Matcha core, Bad bih vibe
+- **Vibe Categories**: Aesthetic core, Classy core, Rizz core, Matcha core, Bad bih vibe
 - **Google Authentication**: Sign in with Google via Firebase
 - **Free Tier**: 3 free photo checks per month
 - **Premium Upgrade**: Unlimited checks for $9/month (demo mode)

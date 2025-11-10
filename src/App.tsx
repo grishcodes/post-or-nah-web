@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SplashScreen } from './components/SplashScreen';
 import { UploadScreen } from './components/UploadScreen';
 import { ResultScreen } from './components/ResultScreen';
-import { PricingPlans } from './components/PricingPlans';
+// import {pricingplan} from './components/PricingPlan';
+import { SubscriptionScreen } from './components/SubscriptionScreen';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 
-type Screen = 'splash' | 'upload' | 'result' | 'pricing' | 'login';
+type Screen = 'splash' | 'upload' | 'result' | 'subscription' | 'login';
 
 interface PhotoData {
   file: File | string;
@@ -19,19 +20,15 @@ interface PhotoData {
 export default function App() {
   const [user, setUser] = useState<any | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
-  const [credits, setCredits] = useState(3); // Start with 3 free credits
-  const [currentPlan, setCurrentPlan] = useState<string>('Free');
+  const [checksUsed, setChecksUsed] = useState(0);
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
 
-  // Load credits and plan from localStorage on mount
+  // Load checks used from localStorage on mount
   useEffect(() => {
-    const savedCredits = localStorage.getItem('postOrNahCredits');
-    const savedPlan = localStorage.getItem('postOrNahPlan');
-    if (savedCredits) {
-      setCredits(parseInt(savedCredits, 10));
-    }
-    if (savedPlan) {
-      setCurrentPlan(savedPlan);
+    const saved = localStorage.getItem('postOrNahChecks');
+    if (saved) {
+      setChecksUsed(parseInt(saved, 10));
     }
   }, []);
 
@@ -50,25 +47,24 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Save credits and plan to localStorage
+  // Save checks used to localStorage
   useEffect(() => {
-    localStorage.setItem('postOrNahCredits', credits.toString());
-    localStorage.setItem('postOrNahPlan', currentPlan);
-  }, [credits, currentPlan]);
+    localStorage.setItem('postOrNahChecks', checksUsed.toString());
+  }, [checksUsed]);
 
   const handleSplashComplete = () => {
     setCurrentScreen('upload');
   };
 
   const handlePhotoUpload = (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => {
-    // Check if user has no credits left
-    if (credits <= 0) {
-      setCurrentScreen('pricing');
+    // Check if user has reached free limit and isn't premium
+    if (checksUsed >= 3 && !isPremium) {
+      setCurrentScreen('subscription');
       return;
     }
 
-    setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null });
-    setCredits(prev => prev - 1);
+  setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null });
+    setChecksUsed(prev => prev + 1);
     setCurrentScreen('result');
   };
 
@@ -77,15 +73,15 @@ export default function App() {
     setCurrentScreen('upload');
   };
 
-  const handleSelectPlan = (planName: string, planCredits: number) => {
-    // Mock purchase process - in production, integrate with Stripe/payment processor
-    setCurrentPlan(planName);
-    setCredits(prev => prev + planCredits);
+  const handleUpgrade = () => {
+    // Mock upgrade process
+    setIsPremium(true);
     setCurrentScreen('upload');
-    alert(`${planName} plan purchased! You now have ${credits + planCredits} credits. (This is a demo)`);
+    // In a real app, this would integrate with a payment processor
+    alert('Upgrade successful! (This is a demo)');
   };
 
-  const handleClosePricing = () => {
+  const handleCloseSubscription = () => {
     setCurrentScreen('upload');
   };
 
@@ -105,8 +101,7 @@ export default function App() {
           <motion.div key="upload">
             <UploadScreen 
               onPhotoUpload={handlePhotoUpload}
-              credits={credits}
-              currentPlan={currentPlan}
+              checksUsed={checksUsed}
             />
           </motion.div>
         )}
@@ -123,24 +118,24 @@ export default function App() {
           </motion.div>
         )}
         
-        {currentScreen === 'pricing' && (
-          <motion.div key="pricing">
-            <PricingPlans
-              onSelectPlan={handleSelectPlan}
-              onClose={handleClosePricing}
+        {currentScreen === 'subscription' && (
+          <motion.div key="subscription">
+            <SubscriptionScreen
+              onUpgrade={handleUpgrade}
+              onClose={handleCloseSubscription}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Plan indicator */}
-      {currentPlan !== 'Free' && (
+      {/* Premium indicator */}
+      {isPremium && (
         <motion.div
-          className="absolute top-4 left-4 bg-slate-800 text-white px-4 py-2 rounded-full text-sm font-semibold z-50 shadow-lg"
+          className="absolute top-4 left-4 bg-yellow-400 text-yellow-800 px-3 py-1 rounded-full text-sm z-50"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
         >
-          {currentPlan} Plan
+          Premium ✨
         </motion.div>
       )}
     </div>
