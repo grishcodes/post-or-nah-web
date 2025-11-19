@@ -7,6 +7,7 @@ import { ResultScreen } from './components/ResultScreen';
 import { SubscriptionScreen } from './components/SubscriptionScreen';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useUserSubscription } from './hooks/useUserSubscription';
 
 type Screen = 'splash' | 'upload' | 'result' | 'subscription' | 'login';
 
@@ -20,17 +21,10 @@ interface PhotoData {
 export default function App() {
   const [user, setUser] = useState<any | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
-  const [checksUsed, setChecksUsed] = useState(0);
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
-  const [isPremium, setIsPremium] = useState(false);
-
-  // Load checks used from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('postOrNahChecks');
-    if (saved) {
-      setChecksUsed(parseInt(saved, 10));
-    }
-  }, []);
+  
+  // Use the new backend-powered subscription hook
+  const { checksUsed, isPremium, loading, incrementCheck, updatePremium } = useUserSubscription(user);
 
   // Listen for Firebase auth state changes
   useEffect(() => {
@@ -47,24 +41,22 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Save checks used to localStorage
-  useEffect(() => {
-    localStorage.setItem('postOrNahChecks', checksUsed.toString());
-  }, [checksUsed]);
-
   const handleSplashComplete = () => {
     setCurrentScreen('upload');
   };
 
-  const handlePhotoUpload = (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => {
+  const handlePhotoUpload = async (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => {
     // Check if user has reached free limit and isn't premium
     if (checksUsed >= 3 && !isPremium) {
       setCurrentScreen('subscription');
       return;
     }
 
-  setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null });
-    setChecksUsed(prev => prev + 1);
+    setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null });
+    
+    // Increment check count on backend
+    await incrementCheck();
+    
     setCurrentScreen('result');
   };
 
@@ -74,11 +66,13 @@ export default function App() {
   };
 
   const handleUpgrade = () => {
-    // Mock upgrade process
-    setIsPremium(true);
-    setCurrentScreen('upload');
-    // In a real app, this would integrate with a payment processor
-    alert('Upgrade successful! (This is a demo)');
+    if (!user) {
+      alert('You must be signed in to upgrade. Please sign in with Google first.');
+      return;
+    }
+
+    // Show subscription screen with credit purchase options
+    setCurrentScreen('subscription');
   };
 
   const handleCloseSubscription = () => {
@@ -102,6 +96,7 @@ export default function App() {
             <UploadScreen 
               onPhotoUpload={handlePhotoUpload}
               checksUsed={checksUsed}
+              isPremium={isPremium}
             />
           </motion.div>
         )}
@@ -123,6 +118,7 @@ export default function App() {
             <SubscriptionScreen
               onUpgrade={handleUpgrade}
               onClose={handleCloseSubscription}
+              user={user}
             />
           </motion.div>
         )}

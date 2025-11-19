@@ -134,7 +134,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
             {aiResponse.suggestions.map((suggestion, index) => (
               <motion.p
                 key={index}
-                className="text-white text-lg bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2"
+                className="text-white text-lg bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 break-words whitespace-pre-wrap"
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.6 + index * 0.1 }}

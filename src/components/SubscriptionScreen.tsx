@@ -2,13 +2,44 @@ import { motion } from 'motion/react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Crown, Check, X } from 'lucide-react';
+import { User } from 'firebase/auth';
 
 interface SubscriptionScreenProps {
   onUpgrade: () => void;
   onClose: () => void;
+  user: User | null;
 }
 
-export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenProps) {
+// Call Stripe Checkout via your backend
+async function handlePurchase(priceId: string, user: User | null) {
+  try {
+    if (!user) {
+      alert('Please sign in to make a purchase');
+      return;
+    }
+
+    const userId = user.uid;
+
+    const res = await fetch('http://localhost:4242/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId, userId }),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const { url } = await res.json();
+    if (url) {
+      window.location.href = url; // redirect to Stripe Checkout
+    } else {
+      console.error('No URL returned from backend.');
+    }
+  } catch (err) {
+    console.error('handlePurchase error:', err);
+  }
+}
+
+export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScreenProps) {
   return (
     <motion.div 
       className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex flex-col px-6 py-8"
@@ -57,7 +88,7 @@ export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenPro
               Premium Upgrade
             </Badge>
             <h4 className="text-2xl text-white mb-4">Unlock Unlimited Checks</h4>
-            <div className="text-5xl text-white mb-2">$9<span className="text-xl">/month</span></div>
+            <div className="text-5xl text-white mb-2">              $35<span className="text-2xl">/month</span></div>
             <p className="text-blue-100">Cancel anytime</p>
           </div>
         </motion.div>
@@ -70,10 +101,11 @@ export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenPro
           transition={{ delay: 0.6 }}
         >
           {[
-            'Unlimited AI photo checks',
-            'Priority processing',
-            'Advanced feedback insights',
-            'No ads'
+            'Unlimited photo checks',
+            'Faster priority processing',
+            'Deeper AI insights',
+            'No ads',
+            'Simple credits: 1 photo = 1 credit'
           ].map((feature, index) => (
             <motion.div
               key={feature}
@@ -99,7 +131,7 @@ export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenPro
             onClick={onUpgrade}
             className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-800 py-4 rounded-2xl text-xl shadow-xl"
           >
-            Upgrade Now
+            Choose a plan that fits you
           </Button>
           
           <Button
@@ -109,6 +141,36 @@ export function SubscriptionScreen({ onUpgrade, onClose }: SubscriptionScreenPro
           >
             Maybe Later
           </Button>
+        </motion.div>
+
+        {/* Credit Packs */}
+        <motion.div
+          className="w-full max-w-sm mt-2 space-y-3"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 1.1 }}
+        >
+
+          <div className="grid grid-cols-1 gap-3">
+            <Button
+              onClick={() => handlePurchase('price_1STDj1Fvu58DRDkCT9RStWeM', user)}
+              className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
+            >
+              Starter • 10 credits
+            </Button>
+            <Button
+              onClick={() => handlePurchase('price_1STDjKFvu58DRDkCWcUGtzIx', user)}
+              className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
+            >
+              Pro • 50 credits
+            </Button>
+            <Button
+              onClick={() => handlePurchase('price_1STDjpFvu58DRDkC6MatX9YN', user)}
+              className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
+            >
+              Premium • 200 credits
+            </Button>
+          </div>
         </motion.div>
 
         <p className="text-xs text-blue-200 text-center max-w-xs">
