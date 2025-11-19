@@ -4,17 +4,20 @@ import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAnalytics, Analytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, signInWithPopup, Auth, User } from "firebase/auth";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Your web app's Firebase configuration (read from Vite env)
+// Add these to your .env:
+// VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+// VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID,
+// VITE_FIREBASE_APP_ID, VITE_FIREBASE_MEASUREMENT_ID
 const firebaseConfig = {
-  apiKey: "AIzaSyDasbLVdC5rWXTPTrO3kk2Wdh5G4r7vQdk",
-  authDomain: "post-or-nah.firebaseapp.com",
-  projectId: "post-or-nah",
-  storageBucket: "post-or-nah.firebasestorage.app",
-  messagingSenderId: "754222877889",
-  appId: "1:754222877889:web:7de6390af2b9cdd39bd840",
-  measurementId: "G-NVRXBR7CRK"
-};
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+} as const;
 
 // Initialize Firebase
 const app: FirebaseApp = initializeApp(firebaseConfig);

@@ -13,6 +13,7 @@ interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
   onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
   checksUsed: number;
+  isPremium: boolean;
 }
 
 const VIBE_CATEGORIES = [
@@ -24,7 +25,7 @@ const VIBE_CATEGORIES = [
   'Bad bih vibe'
 ];
 
-export function UploadScreen({ onPhotoUpload, checksUsed }: UploadScreenProps) {
+export function UploadScreen({ onPhotoUpload, checksUsed, isPremium }: UploadScreenProps) {
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -213,7 +214,13 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
               />
             </div>
           </div>
-          <p className="text-blue-100 text-lg">Check #{Math.min(checksUsed + 1, 3)} of 3 free</p>
+          <p className="text-blue-100 text-lg">
+            {isPremium ? (
+              `Premium - Check #${checksUsed + 1}`
+            ) : (
+              `Check #${Math.min(checksUsed + 1, 3)} of 3 free`
+            )}
+          </p>
         </motion.div>
 
         {/* Upload Section */}

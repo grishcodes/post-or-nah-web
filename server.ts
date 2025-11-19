@@ -1,9 +1,13 @@
+// Copilot, please fix all the import paths in this file.
+// According to ES module rules, all relative imports for local files must start with './' and end with the '.js' extension.
+// For example, an import from 'firebaseAdmin' should be changed to './firebaseAdmin.js'.
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { VertexAI } from '@google-cloud/vertexai';
+import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, auth as adminAuth } from './firebaseAdmin.js';
 
 // Load environment variables
 dotenv.config();
@@ -295,8 +299,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
 
     if (parsed && (parsed.verdict || parsed.comment)) {
       const mappedVerdict = mapVerdictToUI(String(parsed.verdict || ''));
-      let suggestion = String(parsed.comment || '').trim();
-      if (suggestion.length > 150) suggestion = suggestion.substring(0, 147) + '...';
+      const suggestion = String(parsed.comment || '').trim();
       return {
         verdict: mappedVerdict,
         suggestion,
@@ -308,9 +311,8 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
     const lower = responseText.toLowerCase();
     const isPost = lower.includes('post') && !lower.includes('nah');
     const verdict = isPost ? 'Post ✅' : 'Nah ❌';
-    let suggestion = responseText;
-    if (suggestion.length > 150) suggestion = suggestion.substring(0, 147) + '...';
-    return { verdict, suggestion, raw: result.response };
+  const suggestion = responseText;
+  return { verdict, suggestion, raw: result.response };
   } catch (error) {
     console.error('❌ Error calling Vertex AI:', error);
     const msg = error instanceof Error ? error.message : String(error);
@@ -322,11 +324,138 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   }
 }
 
+// Middleware to verify Firebase token
+async function verifyFirebaseToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No authorization token provided' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    (req as any).user = { uid: decodedToken.uid };
+    next();
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+// Optional admin guard: set ADMIN_UIDS in .env as comma-separated Firebase UIDs
+const adminUIDs = (process.env.ADMIN_UIDS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const allowClientUpgrade = (process.env.ALLOW_CLIENT_UPGRADE || '').toLowerCase() === 'true';
+function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const uid = (req as any).user?.uid;
+  if (!uid || !adminUIDs.includes(uid)) {
+    return res.status(403).json({ error: 'Admin only' });
+  }
+  next();
+}
+
 // API Endpoints
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Backend is running' });
 });
 
+// Get user subscription data
+app.get('/api/user/subscription', verifyFirebaseToken, async (req, res) => {
+  try {
+    const uid = (req as any).user.uid;
+    const userData = await getUserData(uid);
+    
+    res.status(200).json({
+      checksUsed: userData.checksUsed,
+      isPremium: userData.isPremium,
+      subscriptionEndDate: userData.subscriptionEndDate,
+    });
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+});
+
+// Increment user checks (called after successful feedback)
+app.post('/api/user/increment-check', verifyFirebaseToken, async (req, res) => {
+  try {
+    const uid = (req as any).user.uid;
+    const userData = await incrementChecksUsed(uid);
+    
+    res.status(200).json({
+      checksUsed: userData.checksUsed,
+      isPremium: userData.isPremium,
+    });
+  } catch (error) {
+    console.error('Error incrementing checks:', error);
+    res.status(500).json({ error: 'Failed to increment checks' });
+  }
+});
+
+// Update premium status (will be called by Stripe webhook later)
+// Premium updates: In production this should be driven by Stripe/Paddle webhooks.
+// For development, you can set ALLOW_CLIENT_UPGRADE=true in .env to allow self-upgrade for testing.
+app.post('/api/user/update-premium', verifyFirebaseToken, async (req, res) => {
+  try {
+    const uid = (req as any).user.uid;
+    const { isPremium, stripeCustomerId, subscriptionEndDate } = req.body;
+    
+    // Security gate: allow only admins unless dev override is enabled
+    const isAdmin = adminUIDs.includes(uid);
+    if (!allowClientUpgrade && !isAdmin) {
+      return res.status(403).json({ error: 'Premium updates require admin or payment webhook' });
+    }
+    
+    const userData = await updatePremiumStatus(
+      uid,
+      isPremium,
+      stripeCustomerId,
+      subscriptionEndDate ? new Date(subscriptionEndDate) : undefined
+    );
+    
+    res.status(200).json({
+      checksUsed: userData.checksUsed,
+      isPremium: userData.isPremium,
+      subscriptionEndDate: userData.subscriptionEndDate,
+    });
+  } catch (error) {
+    console.error('Error updating premium status:', error);
+    res.status(500).json({ error: 'Failed to update premium status' });
+  }
+});
+
+
+// Add credits to user (called by Stripe webhook)
+app.post('/api/user/add-credits', async (req, res) => {
+  try {
+    const { userId, credits, source } = req.body;
+    
+    // Verify server secret for internal calls
+    const authHeader = req.headers.authorization;
+    const serverSecret = process.env.SERVER_SECRET || 'stripe-webhook-secret';
+    
+    if (!authHeader || authHeader !== `Bearer ${serverSecret}`) {
+      return res.status(401).json({ error: 'Invalid server secret' });
+    }
+    
+    if (!userId || typeof credits !== 'number' || credits <= 0) {
+      return res.status(400).json({ error: 'Invalid userId or credits amount' });
+    }
+    
+    const userData = await addCreditsToUser(userId, credits, source || 'stripe_purchase');
+    
+    res.status(200).json({
+      success: true,
+      newBalance: 'unlimited', // Since they're now premium
+      checksUsed: userData.checksUsed,
+      isPremium: userData.isPremium,
+    });
+  } catch (error) {
+    console.error('Error adding credits:', error);
+    res.status(500).json({ error: 'Failed to add credits' });
+  }
+});
 app.post('/api/feedback', async (req, res) => {
   const { imageBase64, category } = req.body;
 

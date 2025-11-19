@@ -102,7 +102,7 @@ async function oldTestVertexAI() {
     const result = await model.generateContent({
       contents: [{
         role: 'user',
-        parts: [{ text: 'Say "Hello, world!" and nothing else.' }]
+        parts: [{ text: 'Say "Hello, world!" and nothing else.' }]  
       }]
     });
     
