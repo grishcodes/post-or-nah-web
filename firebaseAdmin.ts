@@ -33,6 +33,7 @@ export interface UserData {
   uid: string;
   email: string | null;
   checksUsed: number;
+  creditsBalance: number;
   isPremium: boolean;
   stripeCustomerId?: string;
   subscriptionEndDate?: Date;
@@ -58,6 +59,7 @@ export async function getUserData(uid: string): Promise<UserData> {
     uid,
     email: null,
     checksUsed: 0,
+    creditsBalance: 0,
     isPremium: false,
     createdAt: now,
     updatedAt: now,
@@ -74,15 +76,41 @@ export async function getUserData(uid: string): Promise<UserData> {
 // Increment checks used
 export async function incrementChecksUsed(uid: string): Promise<UserData> {
   const userRef = db.collection('users').doc(uid);
+  
   try {
-    await userRef.update({
-      checksUsed: admin.firestore.FieldValue.increment(1),
-      updatedAt: new Date(),
+    // Use transaction to safely decrement credits if available
+    await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      
+      if (!userDoc.exists) {
+        throw new Error('User not found');
+      }
+      
+      const currentData = userDoc.data() as UserData;
+      const creditsBalance = currentData.creditsBalance || 0;
+      
+      if (creditsBalance > 0) {
+        // User has credits, decrement them
+        const newBalance = creditsBalance - 1;
+        transaction.update(userRef, {
+          creditsBalance: newBalance,
+          isPremium: newBalance > 0,
+          checksUsed: admin.firestore.FieldValue.increment(1),
+          updatedAt: new Date(),
+        });
+      } else {
+        // No credits, just increment free checks
+        transaction.update(userRef, {
+          checksUsed: admin.firestore.FieldValue.increment(1),
+          updatedAt: new Date(),
+        });
+      }
     });
   } catch (e: any) {
-    console.error('❌ Firestore update() failed incrementChecksUsed uid=', uid, e.message || e);
+    console.error('❌ Firestore transaction failed incrementChecksUsed uid=', uid, e.message || e);
     throw e;
   }
+  
   const updated = await userRef.get();
   return updated.data() as UserData;
 }
@@ -134,17 +162,38 @@ export async function addCreditsToUser(uid: string, credits: number, source: str
   const userRef = db.collection('users').doc(uid);
   
   try {
-    // For now, any credit purchase makes user premium
-    // Later we could add creditsBalance field for more sophisticated tracking
-    await userRef.update({
-      isPremium: true,
-      checksUsed: 0, // Reset their check count as a bonus
-      updatedAt: new Date(),
+    // Use transaction to safely add credits
+    await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      
+      if (!userDoc.exists) {
+        // Create user if doesn't exist
+        const now = new Date();
+        const newUser: UserData = {
+          uid,
+          email: null,
+          checksUsed: 0,
+          creditsBalance: credits,
+          isPremium: credits > 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        transaction.set(userRef, newUser);
+      } else {
+        const currentData = userDoc.data() as UserData;
+        const newBalance = (currentData.creditsBalance || 0) + credits;
+        
+        transaction.update(userRef, {
+          creditsBalance: newBalance,
+          isPremium: newBalance > 0,
+          updatedAt: new Date(),
+        });
+      }
     });
     
     console.log(`✅ Successfully added ${credits} credits to user ${uid}`);
   } catch (e: any) {
-    console.error('❌ Firestore update() failed addCreditsToUser uid=', uid, e.message || e);
+    console.error('❌ Firestore transaction failed addCreditsToUser uid=', uid, e.message || e);
     throw e;
   }
   

@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Crown, Check, X } from 'lucide-react';
 import { User } from 'firebase/auth';
+import { useState } from 'react';
 
 interface SubscriptionScreenProps {
   onUpgrade: () => void;
@@ -10,32 +11,58 @@ interface SubscriptionScreenProps {
   user: User | null;
 }
 
+// Get Stripe server URL - hardcoded for testing
+const STRIPE_SERVER_URL = 'http://localhost:4242';
+
+// Handle main "Choose a plan" button - redirect to Stripe with the Pro plan
+async function handleChoosePlan(user: User | null) {
+  console.log('🎯 Choose plan button clicked');
+  // Default to the middle option (Pro - 50 credits) for the main button
+  await handlePurchase('price_1STDjKFvu58DRDkCWcUGtzIx', user);
+}
+
 // Call Stripe Checkout via your backend
 async function handlePurchase(priceId: string, user: User | null) {
+  console.log('🛒 handlePurchase called with:', { priceId, userId: user?.uid });
   try {
     if (!user) {
+      console.error('❌ User not signed in');
       alert('Please sign in to make a purchase');
       return;
     }
 
     const userId = user.uid;
+    console.log('📡 Making request to Stripe server...');
+    console.log('🔗 Stripe server URL:', STRIPE_SERVER_URL);
 
-    const res = await fetch('http://localhost:4242/create-checkout-session', {
+    const res = await fetch(`${STRIPE_SERVER_URL}/create-checkout-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId, userId }),
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    console.log('📨 Response status:', res.status);
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('❌ Stripe server error:', errorText);
+      throw new Error(`HTTP ${res.status}: ${errorText}`);
+    }
 
-    const { url } = await res.json();
-    if (url) {
-      window.location.href = url; // redirect to Stripe Checkout
+    const data = await res.json();
+    console.log('✅ Stripe response:', data);
+    
+    if (data.url) {
+      console.log('🔀 Redirecting to Stripe checkout:', data.url);
+      window.location.href = data.url; // redirect to Stripe Checkout
     } else {
-      console.error('No URL returned from backend.');
+      console.error('❌ No URL returned from backend:', data);
+      alert('Error: No checkout URL received');
     }
   } catch (err) {
     console.error('handlePurchase error:', err);
+    const message = err instanceof Error ? err.message : 'Unknown error occurred';
+    alert(`Payment error: ${message}. Please try again or contact support.`);
   }
 }
 
@@ -87,8 +114,8 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
             <Badge className="bg-yellow-400 text-yellow-800 px-4 py-2 text-lg mb-4">
               Premium Upgrade
             </Badge>
-            <h4 className="text-2xl text-white mb-4">Unlock Unlimited Checks</h4>
-            <div className="text-5xl text-white mb-2">              $35<span className="text-2xl">/month</span></div>
+            <h4 className="text-2xl text-white mb-4">Get 200 checks for just</h4>
+            <div className="text-5xl text-white mb-2">$3</div>
             <p className="text-blue-100">Cancel anytime</p>
           </div>
         </motion.div>
@@ -128,7 +155,7 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
           transition={{ delay: 1 }}
         >
           <Button
-            onClick={onUpgrade}
+            onClick={() => document.getElementById('credit-packs')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
             className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-800 py-4 rounded-2xl text-xl shadow-xl"
           >
             Choose a plan that fits you
@@ -145,6 +172,7 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
 
         {/* Credit Packs */}
         <motion.div
+          id="credit-packs"
           className="w-full max-w-sm mt-2 space-y-3"
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

@@ -176,7 +176,38 @@ app.get('/', (_req, res) => {
   res.status(200).json({ status: 'ok', message: 'Stripe payment server running' });
 });
 
+// ---------------- Error Handling ----------------
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // Don't exit - keep server running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit - keep server running
+});
+
 // ---------------- Start Server ----------------
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Stripe payment server listening on http://localhost:${PORT}`);
+});
+
+// Keep server alive
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('📴 Received SIGTERM, shutting down gracefully');
+  server.close(() => {
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('📴 Received SIGINT, shutting down gracefully');
+  server.close(() => {
+    process.exit(0);
+  });
 });
