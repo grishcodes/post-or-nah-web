@@ -4,6 +4,7 @@ import { User } from 'firebase/auth';
 
 interface UserSubscription {
   checksUsed: number;
+  creditsBalance: number;
   isPremium: boolean;
   subscriptionEndDate?: Date;
 }
@@ -13,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export function useUserSubscription(user: User | null) {
   const [subscription, setSubscription] = useState<UserSubscription>({
     checksUsed: 0,
+    creditsBalance: 0,
     isPremium: false,
   });
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ export function useUserSubscription(user: User | null) {
   // Fetch user subscription data from backend
   const fetchSubscription = async () => {
     if (!user) {
-      setSubscription({ checksUsed: 0, isPremium: false });
+      setSubscription({ checksUsed: 0, creditsBalance: 0, isPremium: false });
       setLoading(false);
       return;
     }
@@ -41,6 +43,7 @@ export function useUserSubscription(user: User | null) {
       const data = await response.json();
       setSubscription({
         checksUsed: data.checksUsed,
+        creditsBalance: data.creditsBalance || 0,
         isPremium: data.isPremium,
         subscriptionEndDate: data.subscriptionEndDate ? new Date(data.subscriptionEndDate) : undefined,
       });
@@ -51,7 +54,7 @@ export function useUserSubscription(user: User | null) {
       // Fallback to localStorage for backwards compatibility
       const saved = localStorage.getItem('postOrNahChecks');
       if (saved) {
-        setSubscription({ checksUsed: parseInt(saved, 10), isPremium: false });
+        setSubscription({ checksUsed: parseInt(saved, 10), creditsBalance: 0, isPremium: false });
       }
     } finally {
       setLoading(false);
@@ -80,6 +83,7 @@ export function useUserSubscription(user: User | null) {
       const data = await response.json();
       setSubscription({
         checksUsed: data.checksUsed,
+        creditsBalance: data.creditsBalance || 0,
         isPremium: data.isPremium,
         subscriptionEndDate: data.subscriptionEndDate ? new Date(data.subscriptionEndDate) : undefined,
       });
@@ -97,13 +101,14 @@ export function useUserSubscription(user: User | null) {
     }
   };
 
-  // Update premium status
+  // Update premium status (DEPRECATED - kept for backwards compatibility only)
   const updatePremium = async (isPremium: boolean, stripeCustomerId?: string, subscriptionEndDate?: Date) => {
     if (!user) {
       console.error('❌ updatePremium: No user');
       throw new Error('User not authenticated');
     }
 
+    console.log('⚠️  updatePremium is deprecated and will not work unless called by an admin');
     console.log('🚀 updatePremium called for:', user.uid);
     console.log('📧 User email:', user.email);
 
@@ -140,6 +145,7 @@ export function useUserSubscription(user: User | null) {
       const data = await response.json();
       setSubscription({
         checksUsed: data.checksUsed,
+        creditsBalance: data.creditsBalance || 0,
         isPremium: data.isPremium,
         subscriptionEndDate: data.subscriptionEndDate ? new Date(data.subscriptionEndDate) : undefined,
       });

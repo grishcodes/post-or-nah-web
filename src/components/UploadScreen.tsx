@@ -26,6 +26,7 @@ const VIBE_CATEGORIES = [
 ];
 
 export function UploadScreen({ onPhotoUpload, checksUsed, isPremium }: UploadScreenProps) {
+  const { user } = useAuth();
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -218,7 +219,14 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
             {isPremium ? (
               `Premium - Check #${checksUsed + 1}`
             ) : (
-              `Check #${Math.min(checksUsed + 1, 3)} of 3 free`
+              <>
+                Check #{Math.min(checksUsed + 1, 3)} of 3 free
+                {checksUsed < 3 && (
+                  <span className="block text-sm text-blue-200 mt-1">
+                    {3 - checksUsed} {3 - checksUsed === 1 ? 'check' : 'checks'} remaining • Then $3 for 200 more
+                  </span>
+                )}
+              </>
             )}
           </p>
         </motion.div>
@@ -293,12 +301,12 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
                 onClick={() => handleVibeToggle(vibe)}
                 className={`px-6 py-3 cursor-pointer transition-all duration-300 text-base font-medium rounded-full ${
                   selectedVibes.includes(vibe)
-                    ? 'bg-white text-blue-800 hover:bg-white/90 shadow-lg scale-105'
+                    ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-xl scale-110 border-2 border-yellow-600'
                     : 'bg-white/15 text-white hover:bg-white/25 border border-white/30 hover:scale-105'
                 }`}
                 variant="secondary"
               >
-                {vibe}
+                {selectedVibes.includes(vibe) && '✓ '}{vibe}
               </Badge>
             ))}
           </div>
