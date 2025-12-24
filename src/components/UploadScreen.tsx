@@ -215,19 +215,15 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
               />
             </div>
           </div>
-          <p className="text-blue-100 text-lg">
+          <p className="text-blue-100 text-lg mb-2">
             {isPremium ? (
-              `Premium - Check #${checksUsed + 1}`
+              `Premium - Check ${checksUsed + 1}`
             ) : (
-              <>
-                Check #{Math.min(checksUsed + 1, 3)} of 3 free
-                {checksUsed < 3 && (
-                  <span className="block text-sm text-blue-200 mt-1">
-                    {3 - checksUsed} {3 - checksUsed === 1 ? 'check' : 'checks'} remaining • Then $3 for 200 more
-                  </span>
-                )}
-              </>
+              `Check ${checksUsed + 1}`
             )}
+          </p>
+          <p className="text-blue-100 text-lg">
+            Credits remaining: {isPremium ? '∞' : Math.max(0, 3 - checksUsed)}
           </p>
         </motion.div>
 

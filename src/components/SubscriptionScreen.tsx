@@ -114,7 +114,7 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
             <Badge className="bg-yellow-400 text-yellow-800 px-4 py-2 text-lg mb-4">
               Premium Upgrade
             </Badge>
-            <h4 className="text-2xl text-white mb-4">Get 200 checks for just</h4>
+            <h4 className="text-2xl text-white mb-4">Get 10 credits for just</h4>
             <div className="text-5xl text-white mb-2">$3</div>
             <p className="text-blue-100">Cancel anytime</p>
           </div>
