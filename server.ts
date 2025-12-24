@@ -1,7 +1,4 @@
-// Copilot, please fix all the import paths in this file.
-// According to ES module rules, all relative imports for local files must start with './' and end with the '.js' extension.
-// For example, an import from 'firebaseAdmin' should be changed to './firebaseAdmin.js'.
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -29,9 +26,10 @@ const defaultCredsPath = path.resolve(process.cwd(), process.env.GOOGLE_APPLICAT
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = defaultCredsPath;
 }
-const credsExist = fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
+const credsExist = fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 let vertexAI: VertexAI | null = null;
+
 if (!project) {
   console.warn('⚠️  WARNING: GCLOUD_PROJECT not set in .env');
 } else if (!credsExist) {
@@ -43,180 +41,198 @@ if (!project) {
   console.log(`🤖 Using model: ${modelName}`);
 }
 
-// --- Vibe-specific prompt suite (final) ---
-const vibePromptsFinal = {
+// --- GLOBAL CALIBRATION: Defines modern social media standards for the AI ---
+// This ensures the AI accepts "vibey" photos (dark, grainy, faceless) as valid.
+const GLOBAL_CALIBRATION = `
+**GLOBAL DECISION CALIBRATION (APPLIES TO ALL VIBES):**
+
+1. **DO NOT penalize a photo solely because:**
+   - lighting is dark, moody, or flash-heavy
+   - the face is partially hidden, turned away, or obscured
+   - the image is soft, grainy, or has motion blur
+   - the angle is "0.5x" or distorted
+   **These are NORMAL modern posting styles and should be treated as intentional.**
+
+2. **Only trigger "TWEAK IT" if:**
+   - A SMALL, CLEAR change (cropping, straightening) would noticeable improve it.
+   - AND the photo does NOT already succeed for the selected vibe.
+   *If the photo already works "as-is" for the vibe, the verdict must be "POST IT".*
+
+3. **Face visibility rule:**
+   - If the face is not clearly visible BUT the pose, outfit, or energy reads well:
+   → This is NOT a reason to downgrade the verdict.
+
+4. **Lighting rule (VERY IMPORTANT):**
+   - Imperfect lighting ≠ bad lighting.
+   - Only penalize lighting if the image is unintelligible (pitch black) or if it actively clashes with the specific vibe (e.g., harsh neon light in a soft matcha aesthetic).
+
+5. **Verdict sanity check:**
+   - Before outputting, ask: "If my friend posted this right now, would I tell them to delete it?"
+   - If you wouldn't actually DM them a fix, do NOT choose "TWEAK IT".
+`;
+
+// --- MASTER INSTRUCTIONS: THE BRAIN OF THE AI ---
+// This block allows the AI to accept modern trends while thinking broadly about the vibe.
+const MASTER_VISUAL_INSTRUCTIONS = `
+**GLOBAL VISUAL CONSTITUTION (GEN Z & SOCIAL MEDIA STANDARDS):**
+
+1. **THE "IT'S A VIBE" RULE:**
+   - **Low Light / Dark / Moody:** This is often a stylistic choice. If the silhouette or mood is cool, it is GOOD.
+   - **Flash Photography:** Harsh flash is a TREND. Do not call it "bad lighting."
+   - **Grain / Noise / Blur:** Motion blur and film grain are aesthetic choices. Do not penalize them.
+   - **Hidden Faces:** Phones covering faces, looking away, or "mystery" angles are POSITIVE stylistic choices.
+
+2. **THE MIRROR SELFIE & FIT CHECK RULE:**
+   - **Context:** If the user is in front of a mirror (gym, hallway, bedroom), ignore professional photography rules.
+   - **Distance:** Being far away to show the shoes/pants is CORRECT.
+   - **Focus:** If the outfit looks good and the stance is chill, the verdict is "POST IT".
+
+3. **VERDICT LOGIC (POST IT vs TWEAK IT):**
+   - **POST IT:** The photo captures a mood, an outfit, or a moment. It feels authentic.
+   - **TWEAK IT:** ONLY use this if there is a **fixable disaster** (e.g., "Your fly is open," "There is a pile of garbage," "It is pitch black").
+   - **NAH:** The photo is embarrassing or completely unusable.
+
+4. **INTERPRETATION RULE (CRITICAL):**
+   - **Do NOT look for a rigid checklist.** 
+   - Use your judgment to detect the **essence** of the vibe.
+   - If a photo breaks a "rule" but still looks cool, it passes.
+
+5. **OUTPUT FORMAT (STRICT):**
+   - Return valid JSON: { "verdict": "POST IT" | "TWEAK IT" | "NAH", "comment": "string", "reasons": ["string", "string"] }
+   - **Reasons:** Must be 2-4 ULTRA-SHORT visual observations (max 6 words).
+`;
+
+// --- Vibe-specific prompt suite ---
+const vibePromptsFinal: Record<string, string> = {
   general: `
-  **ROLE & GOAL:** You are my best friend, and I've sent you a photo to get your honest opinion before I post it as an IG Story. Your goal is to give me a straightforward, helpful Gen Z-style response on whether it's story-worthy. Be friendly, supportive, but keep it real.
+  **ROLE:** You are the user's best friend. Honest, casual, and supportive.
 
-  **AESTHETIC TO JUDGE:** "IG Story Vibe" - Not a specific trend, just the fundamentals: quick, casual, and clean. Does this photo look good at a glance? Is it clear, well-lit, and does the person in it look natural?
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Clarity & Focus:** Is the subject sharp? Is the photo blurry or pixelated?
-  - **Lighting:** Is the subject's face well-lit and easy to see?
-  - **Composition:** Is the framing good? Is there anything distracting in the background?
-  - **Authenticity:** Does the expression look genuine and natural?
+  **YOUR TASK:** Analyze this photo for "IG Story Vibe" (Casual, Quick, Cool).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **The "Story Worthy" Factor:** Does this photo look good at a glance? Is it interesting, funny, or cool?
+  - **Authenticity:** Does it feel like a real moment? (Candid energy is better than stiff posing).
+  - **Flexibility:** This category is the broadest. It can be a mirror selfie, a scenery shot, a blurry party pic, or a fit check. 
+  - **Judgment:** If it looks like something a cool person would post on their story, say "POST IT".
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your main friendly reaction. For "TWEAK IT" or "NAH" verdicts, the comment must also briefly explain the reason.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "You look so happy here and the lighting is amazing!" }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "Super cute photo, but the background is a bit messy so it's a little distracting." }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "Honestly, it's super blurry; my phone is having trouble focusing on you." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "Fit is clean and the mirror selfie vibe is chill. Post it."
+  - "POST IT": "Wait the low light actually makes this look so mysterious."
+  - "TWEAK IT": "Fit is fire, but move the trash bag behind you."
   `,
 
   aesthetic: `
-  **ROLE & GOAL:** You are my artsy best friend with a perfectly curated feed. I need your opinion on whether this photo fits the "Aesthetic" vibe for social media. Be chill, creative, and speak like an effortlessly stylish influencer.
+  **ROLE:** You are an artsy, curated influencer friend. You value composition and mood over perfection.
 
-  **AESTHETIC TO JUDGE:** "Aesthetic Core" - This is about the mood. Think calm, minimal, visually pleasing, and slightly moody. It's less about a perfect smile and more about the overall composition and color story.
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Color Palette:** Are the colors cohesive and pleasing (e.g., muted, pastel, monochrome)?
-  - **Composition:** Is there good use of negative space and interesting framing?
-  - **Mood:** Does the photo evoke a specific feeling (e.g., peaceful, nostalgic, dreamy)?
-  - **Softness:** Is the lighting gentle and diffused, not harsh?
+  **YOUR TASK:** Analyze for "Aesthetic Core" (Mood > Clarity).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **Visual Harmony:** Do the colors and elements feel cohesive? (Look for palettes that match).
+  - **The "Art" Factor:** Is the framing interesting? (Negative space, off-center, zoomed-in details).
+  - **Texture & Feel:** Does the photo have a tactile quality? (Grain, softness, shadows).
+  - **Judgment:** Does this look like it belongs on a curated Pinterest board or a moody feed?
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your artsy, chill reaction. For "TWEAK IT" or "NAH" verdicts, briefly explain the reasoning.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "The whole color story and moody lighting is such a vibe." }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "Love the concept, but the colors are a little too bright for the aesthetic, maybe try a desaturated filter." }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "The composition feels a bit too busy and chaotic for a minimal aesthetic." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "the grain and the dark lighting is such a mood."
+  - "POST IT": "love how blurry this is, feels like a memory."
+  - "TWEAK IT": "love the vibe but maybe crop out the messy floor."
   `,
 
   classyCore: `
-  **ROLE & GOAL:** You are my sophisticated best friend who understands timeless style. I've sent you a photo and need to know if it has that "Classy Core" elegance before I post. Your tone should be graceful and confident.
+  **ROLE:** You are a sophisticated, stylish friend. You value elegance and timelessness.
 
-  **AESTHETIC TO JUDGE:** "Classy Core" - This means the photo looks elegant, timeless, and put-together. Think quiet luxury, poise, and high quality. It's about looking effortlessly chic.
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Poise & Pose:** Does the posture look graceful and confident?
-  - **Elegance:** Is the overall vibe sophisticated with a clean, non-distracting background?
-  - **Sharpness & Quality:** Is the photo sharp, well-lit, and high-quality?
-  - **Overall Sophistication:** Does it look like it could be from a high-end magazine?
+  **YOUR TASK:** Analyze for "Classy Core" (Timeless, Chic, High-End).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **Sophistication:** Does the subject carry themselves with grace or confidence?
+  - **The "It Factor":** Does the photo feel expensive or editorial? (This can include candid flash photos or posed shots).
+  - **Polish:** Is the outfit or setting elevating the photo? 
+  - **Judgment:** Does this give "Old Money," "High Fashion," or "Clean Girl" energy?
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your refined, elegant reaction. For "TWEAK IT" or "NAH" verdicts, briefly explain why.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "This is so effortlessly chic, absolutely timeless." }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "The outfit is perfect, but the slightly tilted angle cheapens it a bit; try straightening it." }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "The harsh flash photography feels a bit too aggressive for the elegant vibe we're aiming for." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "Giving off-duty model. The flash makes it look so editorial."
+  - "TWEAK IT": "Outfit is stunning, but straighten the horizon line."
+  - "NAH": "The background clutter distracts from the elegance."
   `,
 
   rizzCore: `
-  **ROLE & GOAL:** You are my best friend, and I've sent you a photo to get your honest opinion before I post it. Your goal is to give me a short, hype, Gen Z-style response telling me if the picture has that confident, cool "Rizz" energy. Be fun, a little flirty, and keep it real.
+  **ROLE:** You are a hype-man friend. You are looking for confidence and magnetic energy.
 
-  **AESTHETIC TO JUDGE:** "Rizz Core" - This means the photo should scream confidence, charisma, and effortless cool. The person should look magnetic and in control.
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Confidence:** Does the pose and expression look self-assured and charming?
-  - **Vibe:** Is it more cool and charismatic than try-hard? Is there a sense of mystery?
-  - **Eye Contact:** Is there compelling eye contact with the camera (or is it an intentional look away)?
-  - **Overall 'Rizz':** Does it make you stop scrolling and look twice?
+  **YOUR TASK:** Analyze for "Rizz Core" (Charisma, Coolness).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **Magnetism:** Does the photo pull you in? Is there a sense of allure or "cool"?
+  - **Body Language:** Does the subject look comfortable in their skin? (Relaxed, confident, dominant).
+  - **The Aura:** Is there a sense of mystery or intensity? (Hidden faces and dark lighting often help this).
+  - **Judgment:** Does this photo make the person look attractive or undeniably cool?
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your main fun, flirty reaction. For "TWEAK IT" or "NAH" verdicts, explain what's holding it back.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "Okay, the rizz is off the charts with this one, literally main character energy!" }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "The fit is a whole vibe but the expression is a little too serious, a slight smirk would be magnetic." }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "Love the energy but the awkward hand placement is killing the suave vibe." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "The fact we can't see your face makes this 10x hotter. Mystery rizz."
+  - "POST IT": "Shadows are hitting perfectly. Main character energy."
+  - "TWEAK IT": "Pose is cool, but maybe crop it closer to you to show off the fit."
   `,
 
   matchaCore: `
-  **ROLE & GOAL:** You are my chill, cozy best friend who loves cafes and calm vibes. I sent you a pic and need to know if it fits the "Matcha Core" aesthetic. Your tone should be relaxed, peaceful, and warm.
+  **ROLE:** You are a cozy, wholesome friend. You love cafes, mornings, and peace.
 
-  **AESTHETIC TO JUDGE:** "Matcha Core" - This photo should feel calm, cozy, and earthy. Think soft light, green/neutral tones, gentle poses, and a peaceful, minimalist vibe.
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Color Harmony:** Does the photo feature a soft, earthy palette (greens, beiges, whites, browns)?
-  - **Softness:** Is the lighting gentle and diffused, like morning light through a window?
-  - **Gentle Composition:** Is the photo simple, uncluttered, balanced, and calm?
-  - **Overall Vibe:** Does it evoke a sense of peace, comfort, and quiet joy?
+  **YOUR TASK:** Analyze for "Matcha Core" (Soft, Earthy, Calm).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **Serenity:** Does the photo make you feel calm or relaxed?
+  - **Softness:** Is the lighting or texture gentle? (Avoid harshness/aggression).
+  - **Wholesomeness:** Does it capture a quiet moment? (Morning routines, nature, reading, coffee).
+  - **Judgment:** Does this give "Slow Living" or "Cozy Morning" energy?
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your warm, minimal reaction. For "TWEAK IT" or "NAH" verdicts, gently explain the issue.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "This is so soft and dreamy, it's the perfect cozy vibe." }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "Love this, but the bright red mug is a little distracting from the calm colors." }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "The direct, sunny lighting feels a bit too high-energy for the matcha vibe." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "so soft and dreamy, the lighting is perfect."
+  - "TWEAK IT": "super cute but the red car in the back ruins the zen palette."
+  - "NAH": "a bit too sharp and high-contrast for the cozy vibe."
   `,
 
   badBihVibe: `
-  **ROLE & GOAL:** You are my ultimate hype-bestie. I need you to tell me if this picture is giving "Bad Bih Vibe" and is 100% post-worthy. Your tone needs to be fun, confident, and unapologetically sassy. Hype me up!
+  **ROLE:** You are the ultimate hype-bestie. You are sassy, loud, and confident.
 
-  **AESTHETIC TO JUDGE:** "Bad Bih Vibe" - This is all about bold, confident, main-character energy. Power poses, fierce expressions, and looking like you own the place. It's unapologetic and powerful.
+  ${MASTER_VISUAL_INSTRUCTIONS}
 
-  **ANALYSIS CRITERIA:**
-  - **Attitude & Expression:** Is the expression fierce, confident, and unapologetic?
-  - **Power Pose:** Is the body language strong and commanding? (e.g., standing tall, direct gaze).
-  - **Boss Energy:** Does the overall image scream confidence and self-assurance? Is the styling on point?
-  - **Clarity:** Is the photo sharp and high-quality? Powerful people don't post blurry pics.
+  **YOUR TASK:** Analyze for "Bad Bih Vibe" (Confidence, Boldness).
+  
+  **CORE ENERGY ANALYSIS (Think for yourself):**
+  - **Unapologetic Confidence:** Does the subject look like they own the room? (Main character energy).
+  - **Boldness:** Is the photo loud? (Through motion, angles, outfits, or expression).
+  - **The "Baddie" Factor:** Does it feel effortless yet fierce?
+  - **Judgment:** Does this photo scream confidence and attitude?
 
-  **RESPONSE FORMAT & RULES:**
-  1.  Provide your response in a valid JSON object with two keys: "verdict" and "comment".
-  2.  **verdict:** Choose ONE of these three strings: "POST IT", "TWEAK IT", or "NAH".
-  3.  **comment:** Your hype-squad, sassy reaction. For "TWEAK IT" or "NAH" verdicts, tell me what to fix to level up.
-
-  **EXAMPLES OF TONE (Learn from these):**
-  - **Good Example (POST IT):** { "verdict": "POST IT", "comment": "PERIOD. You ate this up and left no crumbs, this is the definition of main character." }
-  - **Good Example (TWEAK IT):** { "verdict": "TWEAK IT", "comment": "The fit is a 10/10 but the sweet smile isn't giving 'bad bih' energy, I need more fierceness!" }
-  - **Good Example (NAH):** { "verdict": "NAH", "comment": "You're a 10, but this photo is a 4... the low camera angle isn't giving power, it's just awkward." }
-
-  **YOUR TASK:**
-  Now, analyze the user's photo based on all the rules above and provide your JSON response.
+  **TONE EXAMPLES (Guide only):**
+  - "POST IT": "The blur makes this look so chaotic and fun. Obsessed."
+  - "POST IT": "Flash is blinding but you look so good. PERIOD."
+  - "TWEAK IT": "Fit is fire, but the pose feels a little shy."
   `,
-} as const;
+};
 
-function normalizeVibeKey(category?: string): keyof typeof vibePromptsFinal | null {
+function normalizeVibeKey(category?: string): string {
   if (!category) return 'general';
-  const first = category.split(',')[0].trim().toLowerCase();
-  switch (first) {
-    case 'general vibe':
-    case 'ig story vibe':
-      return 'general';
-    case 'aesthetic vibe':
-    case 'aesthetic core':
-      return 'aesthetic';
-    case 'classy core':
-      return 'classyCore';
-    case 'rizz core':
-      return 'rizzCore';
-    case 'matcha core':
-      return 'matchaCore';
-    case 'bad bih vibe':
-      return 'badBihVibe';
-    default:
-      return 'general';
-  }
+  const lower = category.toLowerCase().replace(/[^a-z]/g, '');
+  
+  // Map variants to canonical keys
+  if (lower === 'general' || lower === 'vibecheck') return 'general';
+  if (lower === 'aesthetic' || lower === 'aestheticcore') return 'aesthetic';
+  if (lower === 'classy' || lower === 'classycore') return 'classyCore';
+  if (lower === 'rizz' || lower === 'rizzcore') return 'rizzCore';
+  if (lower === 'matcha' || lower === 'matchacore') return 'matchaCore';
+  if (lower === 'badbih' || lower === 'badbihvibe' || lower === 'baddie') return 'badBihVibe';
+  
+  // Default to general if unknown
+  return 'general';
 }
 
 function mapVerdictToUI(verdictRaw: string): string {
@@ -231,7 +247,7 @@ function mapVerdictToUI(verdictRaw: string): string {
 }
 
 // --- Function to get feedback from Vertex AI Gemini ---
-async function getVertexFeedback(imageBase64: string, category?: string) {
+async function getVertexFeedback(imageBase64: string, category?: string): Promise<any> {
   if (!vertexAI) {
     return {
       verdict: 'Error ⚠️',
@@ -243,15 +259,13 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
   try {
     // Remove any data URI prefix if present
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
     console.log('📤 Calling Vertex AI Gemini (vision)...');
     console.log(`🏷️  Category: ${category || 'none'}`);
 
-    const key = normalizeVibeKey(category || undefined);
-    const selectedPrompt = vibePromptsFinal[key ?? 'general'];
+    const key = normalizeVibeKey(category);
+    const selectedPrompt = vibePromptsFinal[key];
 
     const model = vertexAI.getGenerativeModel({ model: modelName });
-
     const result = await model.generateContent({
       contents: [
         {
@@ -286,6 +300,7 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
         .replace(/^```\s*/i, '')
         .replace(/```\s*$/i, '')
         .trim();
+
       // Extract first JSON object if wrapped
       const start = noFences.indexOf('{');
       const end = noFences.lastIndexOf('}');
@@ -311,8 +326,9 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
     const lower = responseText.toLowerCase();
     const isPost = lower.includes('post') && !lower.includes('nah');
     const verdict = isPost ? 'Post ✅' : 'Nah ❌';
-  const suggestion = responseText;
-  return { verdict, suggestion, raw: result.response };
+    const suggestion = responseText;
+
+    return { verdict, suggestion, raw: result.response };
   } catch (error) {
     console.error('❌ Error calling Vertex AI:', error);
     const msg = error instanceof Error ? error.message : String(error);
@@ -325,18 +341,20 @@ async function getVertexFeedback(imageBase64: string, category?: string) {
 }
 
 // Middleware to verify Firebase token
-async function verifyFirebaseToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+interface AuthenticatedRequest extends Request {
+  user?: { uid: string };
+}
+
+async function verifyFirebaseToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No authorization token provided' });
   }
-  
+
   const token = authHeader.substring(7);
-  
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
-    (req as any).user = { uid: decodedToken.uid };
+    req.user = { uid: decodedToken.uid };
     next();
   } catch (error) {
     console.error('Token verification error:', error);
@@ -346,9 +364,9 @@ async function verifyFirebaseToken(req: express.Request, res: express.Response, 
 
 // Optional admin guard: set ADMIN_UIDS in .env as comma-separated Firebase UIDs
 const adminUIDs = (process.env.ADMIN_UIDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-const allowClientUpgrade = (process.env.ALLOW_CLIENT_UPGRADE || '').toLowerCase() === 'true';
-function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const uid = (req as any).user?.uid;
+
+function verifyAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const uid = req.user?.uid;
   if (!uid || !adminUIDs.includes(uid)) {
     return res.status(403).json({ error: 'Admin only' });
   }
@@ -356,16 +374,15 @@ function verifyAdmin(req: express.Request, res: express.Response, next: express.
 }
 
 // API Endpoints
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Backend is running' });
 });
 
 // Get user subscription data
-app.get('/api/user/subscription', verifyFirebaseToken, async (req, res) => {
+app.get('/api/user/subscription', verifyFirebaseToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const uid = (req as any).user.uid;
+    const uid = req.user!.uid;
     const userData = await getUserData(uid);
-    
     res.status(200).json({
       checksUsed: userData.checksUsed,
       isPremium: userData.isPremium,
@@ -378,11 +395,10 @@ app.get('/api/user/subscription', verifyFirebaseToken, async (req, res) => {
 });
 
 // Increment user checks (called after successful feedback)
-app.post('/api/user/increment-check', verifyFirebaseToken, async (req, res) => {
+app.post('/api/user/increment-check', verifyFirebaseToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const uid = (req as any).user.uid;
+    const uid = req.user!.uid;
     const userData = await incrementChecksUsed(uid);
-    
     res.status(200).json({
       checksUsed: userData.checksUsed,
       isPremium: userData.isPremium,
@@ -393,27 +409,19 @@ app.post('/api/user/increment-check', verifyFirebaseToken, async (req, res) => {
   }
 });
 
-// Update premium status (will be called by Stripe webhook later)
-// Premium updates: In production this should be driven by Stripe/Paddle webhooks.
-// For development, you can set ALLOW_CLIENT_UPGRADE=true in .env to allow self-upgrade for testing.
-app.post('/api/user/update-premium', verifyFirebaseToken, async (req, res) => {
+// Update premium status - ADMIN ONLY (no client upgrades)
+app.post('/api/user/update-premium', verifyFirebaseToken, verifyAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const uid = (req as any).user.uid;
+    const uid = req.user!.uid;
     const { isPremium, stripeCustomerId, subscriptionEndDate } = req.body;
-    
-    // Security gate: allow only admins unless dev override is enabled
-    const isAdmin = adminUIDs.includes(uid);
-    if (!allowClientUpgrade && !isAdmin) {
-      return res.status(403).json({ error: 'Premium updates require admin or payment webhook' });
-    }
-    
+
     const userData = await updatePremiumStatus(
       uid,
       isPremium,
       stripeCustomerId,
       subscriptionEndDate ? new Date(subscriptionEndDate) : undefined
     );
-    
+
     res.status(200).json({
       checksUsed: userData.checksUsed,
       isPremium: userData.isPremium,
@@ -425,26 +433,25 @@ app.post('/api/user/update-premium', verifyFirebaseToken, async (req, res) => {
   }
 });
 
-
 // Add credits to user (called by Stripe webhook)
-app.post('/api/user/add-credits', async (req, res) => {
+app.post('/api/user/add-credits', async (req: Request, res: Response) => {
   try {
     const { userId, credits, source } = req.body;
-    
+
     // Verify server secret for internal calls
     const authHeader = req.headers.authorization;
     const serverSecret = process.env.SERVER_SECRET || 'stripe-webhook-secret';
-    
+
     if (!authHeader || authHeader !== `Bearer ${serverSecret}`) {
       return res.status(401).json({ error: 'Invalid server secret' });
     }
-    
+
     if (!userId || typeof credits !== 'number' || credits <= 0) {
       return res.status(400).json({ error: 'Invalid userId or credits amount' });
     }
-    
+
     const userData = await addCreditsToUser(userId, credits, source || 'stripe_purchase');
-    
+
     res.status(200).json({
       success: true,
       newBalance: 'unlimited', // Since they're now premium
@@ -456,7 +463,8 @@ app.post('/api/user/add-credits', async (req, res) => {
     res.status(500).json({ error: 'Failed to add credits' });
   }
 });
-app.post('/api/feedback', async (req, res) => {
+
+app.post('/api/feedback', async (req: Request, res: Response) => {
   const { imageBase64, category } = req.body;
 
   if (!imageBase64) {
@@ -464,9 +472,8 @@ app.post('/api/feedback', async (req, res) => {
   }
 
   const pureBase64 = imageBase64.split(',').pop();
-
   if (!pureBase64) {
-      return res.status(400).json({ error: 'Invalid base64 string format.' });
+    return res.status(400).json({ error: 'Invalid base64 string format.' });
   }
 
   console.log('Received image for feedback. Calling Vertex AI Gemini...');
