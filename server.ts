@@ -442,6 +442,7 @@ app.get('/api/user/subscription', verifyFirebaseToken, async (req: Authenticated
     const userData = await getUserData(uid);
     res.status(200).json({
       checksUsed: userData.checksUsed,
+      creditsBalance: userData.creditsBalance || 0,
       isPremium: userData.isPremium,
       subscriptionEndDate: userData.subscriptionEndDate,
     });
@@ -458,6 +459,7 @@ app.post('/api/user/increment-check', verifyFirebaseToken, async (req: Authentic
     const userData = await incrementChecksUsed(uid);
     res.status(200).json({
       checksUsed: userData.checksUsed,
+      creditsBalance: userData.creditsBalance || 0,
       isPremium: userData.isPremium,
     });
   } catch (error) {
