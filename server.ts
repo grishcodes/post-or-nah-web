@@ -80,26 +80,22 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
 // --- Google Vertex AI Configuration ---
 const project = process.env.GCLOUD_PROJECT;
 const location = process.env.GCLOUD_LOCATION || 'us-central1';
-const modelName = process.env.GCLOUD_MODEL || 'gemini-1.5-flash';
+const modelName = process.env.GCLOUD_MODEL || 'gemini-2.5-flash';
 
-// Ensure GOOGLE_APPLICATION_CREDENTIALS is set and file exists
-const defaultCredsPath = path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS || 'gcloud-credentials.json');
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = defaultCredsPath;
-}
-
-const credsExist = fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 let vertexAI: VertexAI | null = null;
 
 if (!project) {
-  console.warn('⚠️  WARNING: GCLOUD_PROJECT not set in .env');
-} else if (!credsExist) {
-  console.warn('⚠️  WARNING: Credentials file not found at', process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  console.warn('⚠️  WARNING: GCLOUD_PROJECT not set in env vars');
 } else {
-  vertexAI = new VertexAI({ project, location });
-  console.log('✅ Vertex AI configured');
-  console.log(`📍 Region: ${location}`);
-  console.log(`🤖 Using model: ${modelName}`);
+  try {
+    // Cloud Run automatically provides credentials - no JSON file needed
+    vertexAI = new VertexAI({ project, location });
+    console.log('✅ Vertex AI configured');
+    console.log(`📍 Region: ${location}`);
+    console.log(`🤖 Using model: ${modelName}`);
+  } catch (err) {
+    console.error('❌ Failed to initialize Vertex AI:', err);
+  }
 }
 
 // --- GLOBAL CALIBRATION: Defines modern social media standards for the AI ---
