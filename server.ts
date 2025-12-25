@@ -26,7 +26,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Requ
     return res.status(500).json({ error: 'Stripe webhook env not configured' });
   }
 
-  const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' });
+  const stripe = new Stripe(stripeSecret, { apiVersion: '2025-10-29.clover' });
 
   const sig = req.headers['stripe-signature'] as string;
   let event;
@@ -559,7 +559,7 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
     const successUrl = process.env.FRONTEND_SUCCESS_URL || 'http://localhost:5000/success';
     const cancelUrl = process.env.FRONTEND_CANCEL_URL || 'http://localhost:5000/cancel';
 
-    const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' });
+    const stripe = new Stripe(stripeSecret, { apiVersion: '2025-10-29.clover' });
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
