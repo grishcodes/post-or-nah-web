@@ -181,7 +181,7 @@ export async function addCreditsToUser(uid: string, credits: number, source: str
           email: null,
           checksUsed: 0,
           creditsBalance: credits,
-          isPremium: credits > 0,
+          isPremium: false,
           createdAt: now,
           updatedAt: now,
         };
@@ -192,7 +192,6 @@ export async function addCreditsToUser(uid: string, credits: number, source: str
         
         transaction.update(userRef, {
           creditsBalance: newBalance,
-          isPremium: newBalance > 0,
           updatedAt: new Date(),
         });
       }
