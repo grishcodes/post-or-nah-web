@@ -449,7 +449,13 @@ function AuthControls() {
     .join('');
 
   return (
-    <div className="flex items-center gap-3 p-2">
+    <div className="flex flex-col items-end gap-2 p-2">
+      <button
+        onClick={() => signOut()}
+        className="text-sm text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full"
+      >
+        Sign out
+      </button>
       {user.photoURL ? (
         <ImageWithFallback
           src={user.photoURL}
@@ -462,15 +468,6 @@ function AuthControls() {
           {initials}
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <span className="text-white text-sm hidden sm:inline">{user.displayName}</span>
-        <button
-          onClick={() => signOut()}
-          className="text-sm text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full"
-        >
-          Sign out
-        </button>
-      </div>
     </div>
   );
 }
