@@ -440,6 +440,7 @@ app.get('/api/user/subscription', verifyFirebaseToken, async (req: Authenticated
   try {
     const uid = req.user!.uid;
     const userData = await getUserData(uid);
+    console.log(`📊 Returning subscription data for ${uid}:`, JSON.stringify(userData));
     res.status(200).json({
       checksUsed: userData.checksUsed,
       creditsBalance: userData.creditsBalance || 0,
