@@ -24,7 +24,7 @@ export default function App() {
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
   
   // Use the new backend-powered subscription hook
-  const { checksUsed, isPremium, loading, incrementCheck, updatePremium } = useUserSubscription(user);
+  const { checksUsed, isPremium, creditsBalance, loading, incrementCheck, updatePremium } = useUserSubscription(user);
 
   // Listen for Firebase auth state changes
   useEffect(() => {
@@ -97,6 +97,7 @@ export default function App() {
               onPhotoUpload={handlePhotoUpload}
               checksUsed={checksUsed}
               isPremium={isPremium}
+              creditsBalance={creditsBalance}
             />
           </motion.div>
         )}
