@@ -9,20 +9,27 @@ dotenv.config();
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
   const serviceAccountPath = path.resolve(process.cwd(), 'gcloud-credentials.json');
-  let serviceAccount: any = null;
-  try {
-    const raw = fs.readFileSync(serviceAccountPath, 'utf8');
-    serviceAccount = JSON.parse(raw);
-  } catch (e) {
-    console.error('❌ Failed to load service account JSON at', serviceAccountPath, e);
-    throw e;
+  
+  if (fs.existsSync(serviceAccountPath)) {
+    try {
+      const raw = fs.readFileSync(serviceAccountPath, 'utf8');
+      const serviceAccount = JSON.parse(raw);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log('✅ Firebase Admin initialized with local credentials');
+    } catch (e) {
+      console.error('❌ Failed to load service account JSON at', serviceAccountPath, e);
+      throw e;
+    }
+  } else {
+    console.log('⚠️ gcloud-credentials.json not found, using applicationDefault()');
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT
+    });
+    console.log('✅ Firebase Admin initialized with default credentials');
   }
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  console.log('✅ Firebase Admin initialized');
-  console.log('🔎 Loaded service account project_id:', serviceAccount.project_id);
-  console.log('🔎 GCLOUD_PROJECT env:', process.env.GCLOUD_PROJECT);
 }
 
 export const db = admin.firestore();

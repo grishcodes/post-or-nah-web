@@ -94,18 +94,13 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium }: UploadScr
       const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
 
       try {
-        // Prefer explicit env override if provided
-        const envApiBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
-        const host = window.location.hostname;
-        const port = window.location.port;
-        const isLocalHost = host === 'localhost' || host === '127.0.0.1';
-        const isViteDev = port === '5173' || port === '5174' || isLocalHost;
-
-        // In dev mode, prioritize localhost:5000 first, then VITE_API_BASE, then proxy path
+        // Determine API URL
+        const envApiBase = import.meta.env.VITE_API_URL;
+        
+        // Try configured env var first, then fallback to localhost:3001
         const candidates = [
-          isViteDev ? 'http://localhost:5000/api/feedback' : undefined, // Dev: localhost first
-          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined, // Production env override
-          '/api/feedback', // Vite proxy fallback
+          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined,
+          'http://localhost:3001/api/feedback'
         ].filter(Boolean) as string[];
 
         let lastErr: any = null;
