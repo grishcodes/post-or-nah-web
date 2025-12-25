@@ -511,7 +511,7 @@ app.post('/api/user/add-credits', async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      newBalance: 'unlimited', // Since they're now premium
+      newBalance: userData.creditsBalance,
       checksUsed: userData.checksUsed,
       isPremium: userData.isPremium,
     });
