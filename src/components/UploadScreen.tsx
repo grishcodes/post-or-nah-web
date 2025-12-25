@@ -219,7 +219,7 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
             )}
           </p>
           <p className="text-blue-100 text-lg">
-            Credits remaining: {isPremium ? '∞' : creditsBalance > 0 ? creditsBalance : Math.max(0, 3 - checksUsed)}
+            Credits remaining: {creditsBalance > 0 ? creditsBalance : isPremium ? '∞' : Math.max(0, 3 - checksUsed)}
           </p>
         </motion.div>
 
