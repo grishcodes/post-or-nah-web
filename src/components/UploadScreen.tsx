@@ -14,6 +14,7 @@ interface UploadScreenProps {
   onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
   checksUsed: number;
   isPremium: boolean;
+  creditsBalance?: number;
 }
 
 const VIBE_CATEGORIES = [
@@ -25,7 +26,7 @@ const VIBE_CATEGORIES = [
   'Bad bih vibe'
 ];
 
-export function UploadScreen({ onPhotoUpload, checksUsed, isPremium }: UploadScreenProps) {
+export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBalance = 0 }: UploadScreenProps) {
   const { user } = useAuth();
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
@@ -218,7 +219,7 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
             )}
           </p>
           <p className="text-blue-100 text-lg">
-            Credits remaining: {isPremium ? '∞' : Math.max(0, 3 - checksUsed)}
+            Credits remaining: {isPremium ? '∞' : creditsBalance > 0 ? creditsBalance : Math.max(0, 3 - checksUsed)}
           </p>
         </motion.div>
 
@@ -252,11 +253,12 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
             {uploadedPhoto ? (
               <div className="flex flex-col items-center space-y-3">
                 {previewUrl && (
-                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center">
+                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center flex-shrink-0">
                     <img
                       src={previewUrl}
                       alt="Selected preview"
                       className="w-full h-full object-cover pointer-events-none select-none"
+                      onError={(e) => console.error('Image failed to load:', e)}
                     />
                   </div>
                 )}
