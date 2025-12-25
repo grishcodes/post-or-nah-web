@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
 import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, auth as adminAuth } from './firebaseAdmin.js';
 
@@ -14,6 +15,66 @@ const port = process.env.BACKEND_PORT || 3001;
 
 // Middleware
 app.use(cors());
+
+// --- Stripe Webhook (Must be before express.json) ---
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!stripeSecret || !webhookSecret) {
+    console.error('[Webhook] Missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET');
+    return res.status(500).json({ error: 'Stripe webhook env not configured' });
+  }
+
+  const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' });
+
+  const sig = req.headers['stripe-signature'] as string;
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error('[Webhook] Signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const userId = session.client_reference_id;
+    console.log(`[Webhook] checkout.session.completed for userId=${userId}`);
+
+    try {
+      // Retrieve line items to determine purchased price
+      const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 });
+      const purchasedPriceId = lineItems?.data?.[0]?.price?.id;
+      console.log(`[Webhook] Retrieved priceId=${purchasedPriceId}`);
+
+      if (userId && purchasedPriceId) {
+        // Map price IDs to credits
+        // Starter: price_1STDj1Fvu58DRDkCT9RStWeM  => +10 credits
+        // Pro:     price_1STDjKFvu58DRDkCWcUGtzIx  => +50 credits
+        // Premium: price_1STDjpFvu58DRDkC6MatX9YN  => +200 credits
+        
+        let creditsToAdd = 0;
+        if (purchasedPriceId === 'price_1STDj1Fvu58DRDkCT9RStWeM') creditsToAdd = 10;
+        else if (purchasedPriceId === 'price_1STDjKFvu58DRDkCWcUGtzIx') creditsToAdd = 50;
+        else if (purchasedPriceId === 'price_1STDjpFvu58DRDkC6MatX9YN') creditsToAdd = 200;
+
+        if (creditsToAdd > 0) {
+           await addCreditsToUser(userId, creditsToAdd, 'stripe_purchase');
+           console.log(`[Webhook] Added ${creditsToAdd} credits to user ${userId}`);
+        } else {
+           console.warn(`[Webhook] Unrecognized priceId: ${purchasedPriceId}`);
+        }
+      }
+    } catch (err) {
+      console.error('[Webhook] Error handling checkout.session.completed:', err);
+    }
+  }
+
+  res.status(200).json({ received: true });
+});
+
 app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
 
 // --- Google Vertex AI Configuration ---
@@ -479,6 +540,42 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
   console.log('Received image for feedback. Calling Vertex AI Gemini...');
   const feedback = await getVertexFeedback(pureBase64, category);
   res.status(200).json(feedback);
+});
+
+// --- Stripe Checkout Session ---
+app.post('/create-checkout-session', async (req: Request, res: Response) => {
+  try {
+    const { priceId, userId } = req.body;
+    if (!priceId || !userId) {
+      return res.status(400).json({ error: 'Missing priceId or userId' });
+    }
+
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecret) {
+      return res.status(500).json({ error: 'STRIPE_SECRET_KEY not set' });
+    }
+
+    // Use environment variables for success/cancel URLs, default to localhost:5000 for dev
+    const successUrl = process.env.FRONTEND_SUCCESS_URL || 'http://localhost:5000/success';
+    const cancelUrl = process.env.FRONTEND_CANCEL_URL || 'http://localhost:5000/cancel';
+
+    const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      line_items: [
+        { price: priceId, quantity: 1 },
+      ],
+    });
+
+    return res.status(200).json({ url: session.url });
+  } catch (err) {
+    console.error('[Create Checkout] Error:', err);
+    return res.status(500).json({ error: 'Failed to create checkout session' });
+  }
 });
 
 // Start the server

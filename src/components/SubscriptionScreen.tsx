@@ -11,8 +11,8 @@ interface SubscriptionScreenProps {
   user: User | null;
 }
 
-// Get Stripe server URL - hardcoded for testing
-const STRIPE_SERVER_URL = 'http://localhost:4242';
+// Get API URL from environment or default to localhost:3001
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Handle main "Choose a plan" button - redirect to Stripe with the Pro plan
 async function handleChoosePlan(user: User | null) {
@@ -32,10 +32,10 @@ async function handlePurchase(priceId: string, user: User | null) {
     }
 
     const userId = user.uid;
-    console.log('📡 Making request to Stripe server...');
-    console.log('🔗 Stripe server URL:', STRIPE_SERVER_URL);
+    console.log('📡 Making request to backend...');
+    console.log('🔗 Backend URL:', API_URL);
 
-    const res = await fetch(`${STRIPE_SERVER_URL}/create-checkout-session`, {
+    const res = await fetch(`${API_URL}/create-checkout-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId, userId }),
