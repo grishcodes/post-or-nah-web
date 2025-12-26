@@ -19,7 +19,24 @@ const allowedOrigin = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '*'
 // Enhanced CORS configuration for global compatibility
 // Handles Safari, private browsing, and strict privacy settings
 app.use(cors({
-  origin: allowedOrigin,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // If allowedOrigin is wildcard, allow all
+    if (allowedOrigin === '*') return callback(null, true);
+    
+    // Otherwise check if origin matches
+    if (origin === allowedOrigin) return callback(null, true);
+    
+    // For development, also allow localhost variants
+    if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      return callback(null, true);
+    }
+    
+    console.log(`⚠️  CORS rejected origin: ${origin} (allowed: ${allowedOrigin})`);
+    callback(new Error('CORS not allowed'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
