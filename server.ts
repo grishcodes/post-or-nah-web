@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
-import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, auth as adminAuth } from './firebaseAdmin.js';
+import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, updateUserSubscription, auth as adminAuth } from './firebaseAdmin.js';
 
 // Load environment variables
 dotenv.config();
@@ -38,37 +38,91 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Requ
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Handle checkout.session.completed (for recurring subscriptions)
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.client_reference_id;
-    console.log(`[Webhook] checkout.session.completed for userId=${userId}`);
+    const subscriptionId = session.subscription as string;
+    console.log(`[Webhook] checkout.session.completed for userId=${userId}, subscriptionId=${subscriptionId}`);
+
+    if (userId && subscriptionId) {
+      try {
+        // Get subscription details to determine tier and monthly credits
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const priceId = subscription.items.data[0]?.price?.id;
+        console.log(`[Webhook] Subscription priceId=${priceId}`);
+
+        // Map new recurring price IDs to monthly credits
+        let monthlyCredits = 0;
+        if (priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt') monthlyCredits = 50;      // Starter
+        else if (priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ') monthlyCredits = 200; // Pro
+        else if (priceId === 'price_1SiPqnFvu58DRDkCWwdway9a') monthlyCredits = 999999; // Unlimited (soft cap)
+
+        if (monthlyCredits > 0) {
+          // Set subscription tier in Firestore
+          await updateUserSubscription(userId, {
+            subscriptionId,
+            tier: priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt' ? 'starter' 
+                  : priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ' ? 'pro' 
+                  : 'unlimited',
+            monthlyCredits,
+            creditsBalance: monthlyCredits,
+            billingCycleStart: new Date(),
+          });
+          console.log(`[Webhook] Set subscription for user ${userId}: ${monthlyCredits} monthly credits`);
+        }
+      } catch (err) {
+        console.error('[Webhook] Error handling checkout.session.completed:', err);
+      }
+    }
+  }
+
+  // Handle customer.subscription.updated (renewal, plan change, cancellation)
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = subscription.customer as string;
+    const priceId = subscription.items.data[0]?.price?.id;
+    
+    console.log(`[Webhook] customer.subscription.updated: customerId=${customerId}, status=${subscription.status}`);
 
     try {
-      // Retrieve line items to determine purchased price
-      const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 });
-      const purchasedPriceId = lineItems?.data?.[0]?.price?.id;
-      console.log(`[Webhook] Retrieved priceId=${purchasedPriceId}`);
+      // Get the user ID from Stripe metadata (we'll set this during checkout)
+      const userId = subscription.metadata?.userId;
+      if (!userId) {
+        console.warn('[Webhook] No userId in subscription metadata');
+        return res.status(200).json({ received: true });
+      }
 
-      if (userId && purchasedPriceId) {
-        // Map price IDs to credits
-        // Starter: price_1STDj1Fvu58DRDkCT9RStWeM  => +10 credits
-        // Pro:     price_1STDjKFvu58DRDkCWcUGtzIx  => +50 credits
-        // Premium: price_1STDjpFvu58DRDkC6MatX9YN  => +200 credits
-        
-        let creditsToAdd = 0;
-        if (purchasedPriceId === 'price_1STDj1Fvu58DRDkCT9RStWeM') creditsToAdd = 10;
-        else if (purchasedPriceId === 'price_1STDjKFvu58DRDkCWcUGtzIx') creditsToAdd = 50;
-        else if (purchasedPriceId === 'price_1STDjpFvu58DRDkC6MatX9YN') creditsToAdd = 200;
+      if (subscription.status === 'active' && priceId) {
+        // Subscription renewed or plan changed - reset monthly credits
+        let monthlyCredits = 0;
+        if (priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt') monthlyCredits = 50;
+        else if (priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ') monthlyCredits = 200;
+        else if (priceId === 'price_1SiPqnFvu58DRDkCWwdway9a') monthlyCredits = 999999;
 
-        if (creditsToAdd > 0) {
-           await addCreditsToUser(userId, creditsToAdd, 'stripe_purchase');
-           console.log(`[Webhook] Added ${creditsToAdd} credits to user ${userId}`);
-        } else {
-           console.warn(`[Webhook] Unrecognized priceId: ${purchasedPriceId}`);
+        if (monthlyCredits > 0) {
+          await updateUserSubscription(userId, {
+            subscriptionId: subscription.id,
+            tier: priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt' ? 'starter' 
+                  : priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ' ? 'pro' 
+                  : 'unlimited',
+            monthlyCredits,
+            creditsBalance: monthlyCredits,
+            billingCycleStart: new Date(),
+          });
+          console.log(`[Webhook] Renewed subscription for user ${userId}: reset to ${monthlyCredits} credits`);
         }
+      } else if (subscription.status === 'canceled' || subscription.status === 'past_due') {
+        // Mark subscription as inactive
+        await updateUserSubscription(userId, {
+          subscriptionId: subscription.id,
+          tier: 'none',
+          status: subscription.status,
+        });
+        console.log(`[Webhook] Subscription ${subscription.status} for user ${userId}`);
       }
     } catch (err) {
-      console.error('[Webhook] Error handling checkout.session.completed:', err);
+      console.error('[Webhook] Error handling customer.subscription.updated:', err);
     }
   }
 
@@ -567,10 +621,16 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
     const stripe = new Stripe(stripeSecret, { apiVersion: '2025-10-29.clover' });
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: 'subscription',  // Changed from 'payment' to 'subscription' for recurring billing
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: userId,
+      customer_email: req.body.customerEmail, // Optional: pre-fill customer email
+      subscription_data: {
+        metadata: {
+          userId, // Include userId in subscription metadata for webhook handling
+        },
+      },
       line_items: [
         { price: priceId, quantity: 1 },
       ],

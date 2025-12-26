@@ -17,8 +17,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // Handle main "Choose a plan" button - redirect to Stripe with the Pro plan
 async function handleChoosePlan(user: User | null) {
   console.log('🎯 Choose plan button clicked');
-  // Default to the middle option (Pro - 50 credits) for the main button
-  await handlePurchase('price_1STDjKFvu58DRDkCWcUGtzIx', user);
+  // Default to the middle option (Pro - $12/month) for the main button
+  await handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user);
 }
 
 // Call Stripe Checkout via your backend
@@ -181,22 +181,22 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
 
           <div className="grid grid-cols-1 gap-3">
             <Button
-              onClick={() => handlePurchase('price_1STDj1Fvu58DRDkCT9RStWeM', user)}
+              onClick={() => handlePurchase('price_1SiPpnFvu58DRDkCWZQENIqt', user)}
               className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
             >
-              Starter • 10 credits
+              Starter • $5/mo • 50 credits
             </Button>
             <Button
-              onClick={() => handlePurchase('price_1STDjKFvu58DRDkCWcUGtzIx', user)}
-              className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
+              onClick={() => handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user)}
+              className="w-full bg-yellow-300 text-blue-800 hover:bg-yellow-400 py-3 rounded-xl shadow font-bold"
             >
-              Pro • 50 credits
+              Pro • $12/mo • 200 credits (Most Popular)
             </Button>
             <Button
-              onClick={() => handlePurchase('price_1STDjpFvu58DRDkC6MatX9YN', user)}
+              onClick={() => handlePurchase('price_1SiPqnFvu58DRDkCWwdway9a', user)}
               className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
             >
-              Premium • 200 credits
+              Unlimited • $25/mo • Unlimited credits
             </Button>
           </div>
         </motion.div>
