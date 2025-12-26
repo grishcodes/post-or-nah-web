@@ -407,8 +407,12 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
       let mimeType = 'image/jpeg'; // default
       let base64Data = imageBase64;
     
+      console.log('🔍 RAW imageBase64 length:', imageBase64.length);
+      console.log('🔍 RAW imageBase64 first 100 chars:', imageBase64.substring(0, 100));
+      
       // Check if it's a data URI (data:image/png;base64,...)
       const dataUriMatch = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+      console.log('🔍 dataUriMatch result:', dataUriMatch ? 'MATCHED' : 'NO MATCH');
       if (dataUriMatch) {
         mimeType = dataUriMatch[1]; // e.g., 'image/png'
         base64Data = dataUriMatch[2]; // the actual base64 string
@@ -417,6 +421,8 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
     console.log('📤 Calling Vertex AI Gemini (vision)...');
     console.log(`🏷️  Category: ${category || 'none'}`);
       console.log(`🖼️  MIME Type: ${mimeType}`);
+      console.log('🖼️  Base64 data length:', base64Data.length);
+      console.log('🖼️  Base64 first 100 chars:', base64Data.substring(0, 100));
 
     const key = normalizeVibeKey(category);
     const selectedPrompt = vibePromptsFinal[key];
@@ -649,7 +655,12 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid base64 string format.' });
   }
 
-  console.log('Received image for feedback. Calling Vertex AI Gemini...');
+  console.log('📨 Received /api/feedback request');
+  console.log('📨 imageBase64 type:', typeof imageBase64);
+  console.log('📨 imageBase64 length:', imageBase64.length);
+  console.log('📨 imageBase64 first 150 chars:', imageBase64.substring(0, 150));
+  console.log('📨 category:', category);
+  
   // Pass the full data URI so getVertexFeedback can extract MIME type correctly
   const feedback = await getVertexFeedback(imageBase64, category);
   res.status(200).json(feedback);
