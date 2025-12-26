@@ -558,6 +558,12 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
     const successUrl = process.env.FRONTEND_SUCCESS_URL || 'http://localhost:5000/success';
     const cancelUrl = process.env.FRONTEND_CANCEL_URL || 'http://localhost:5000/cancel';
 
+    // Helpful debug logging to diagnose session creation issues
+    try {
+      const keyPrefix = stripeSecret.slice(0, 7);
+      console.log(`[Create Checkout] priceId=${priceId} userId=${userId} successUrl=${successUrl} cancelUrl=${cancelUrl} keyPrefix=${keyPrefix}`);
+    } catch {}
+
     const stripe = new Stripe(stripeSecret, { apiVersion: '2025-10-29.clover' });
 
     const session = await stripe.checkout.sessions.create({
@@ -573,7 +579,8 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
     return res.status(200).json({ url: session.url });
   } catch (err) {
     console.error('[Create Checkout] Error:', err);
-    return res.status(500).json({ error: 'Failed to create checkout session' });
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return res.status(500).json({ error: 'Failed to create checkout session', detail: message });
   }
 });
 
