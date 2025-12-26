@@ -13,8 +13,43 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || process.env.BACKEND_PORT || 3001;
 
-// Middleware
-app.use(cors());
+// Get allowed origin from env, or use wildcard for development
+const allowedOrigin = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '*';
+
+// Enhanced CORS configuration for global compatibility
+// Handles Safari, private browsing, and strict privacy settings
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+  ],
+  exposedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Total-Count',
+    'X-Page-Number',
+  ],
+  maxAge: 86400, // 24 hours - reduces preflight requests
+}));
+
+// Add additional headers for browser compatibility
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Allow this resource to be used in cross-origin contexts
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  // Support for private browsing / incognito modes
+  res.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  // Charset for better international support
+  res.header('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
 
 // --- Stripe Webhook (Must be before express.json) ---
 app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
@@ -485,8 +520,22 @@ function verifyAdmin(req: AuthenticatedRequest, res: Response, next: NextFunctio
 }
 
 // API Endpoints
+
+// Health check endpoint - helps detect connectivity issues
 app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'ok', message: 'Backend is running' });
+  const healthCheck = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    message: 'Backend is running',
+    vertexAI: vertexAI ? 'configured' : 'not configured',
+    environment: process.env.NODE_ENV || 'development',
+  };
+  res.status(200).json(healthCheck);
+});
+
+// Ping endpoint for quick connectivity tests (minimal response)
+app.get('/api/ping', (req: Request, res: Response) => {
+  res.status(200).json({ ok: true });
 });
 
 // Get user subscription data

@@ -8,6 +8,7 @@ import { SubscriptionScreen } from './components/SubscriptionScreen';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useUserSubscription } from './hooks/useUserSubscription';
+import { SafariCompat } from './lib/safariCompat';
 
 type Screen = 'splash' | 'upload' | 'result' | 'subscription' | 'login';
 
@@ -25,6 +26,19 @@ export default function App() {
   
   // Use the new backend-powered subscription hook
   const { checksUsed, isPremium, creditsBalance, loading, incrementCheck, updatePremium, refetch } = useUserSubscription(user);
+
+  // Initialize Safari compatibility on mount
+  useEffect(() => {
+    // Apply Safari-specific fixes
+    SafariCompat.applyWebkitFixes();
+    SafariCompat.fixViewport();
+    
+    // Log browser info for debugging
+    const browserInfo = SafariCompat.getBrowserInfo();
+    if (browserInfo.isSafari) {
+      console.log('🔍 Safari detected:', browserInfo.version);
+    }
+  }, []);
 
   // Listen for Firebase auth state changes
   useEffect(() => {
