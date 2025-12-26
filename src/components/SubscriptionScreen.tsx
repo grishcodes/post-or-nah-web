@@ -190,7 +190,7 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
               onClick={() => handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user)}
               className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow font-bold"
             >
-              Pro • $12/mo • 200 credits (Most Popular)
+              <span className="font-bold">Pro • $12/mo • 200 credits (Most Popular)</span>
             </Button>
             <Button
               onClick={() => handlePurchase('price_1SiPqnFvu58DRDkCWwdway9a', user)}
