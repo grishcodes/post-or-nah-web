@@ -17,7 +17,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // Handle main "Choose a plan" button - redirect to Stripe with the Pro plan
 async function handleChoosePlan(user: User | null) {
   // Default to the middle option (Pro - $12/month) for the main button
-  await handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user);
+  await handlePurchase('price_1SiRKCFvu58DRDkCGoZeG8Er', user);
 }
 
 // Call Stripe Checkout via your backend
@@ -175,7 +175,7 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
               Starter • $5/mo • 50 credits
             </Button>
             <Button
-              onClick={() => handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user)}
+              onClick={() => handlePurchase('price_1SiRKCFvu58DRDkCGoZeG8Er', user)}
               className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow font-bold"
             >
               <span className="font-bold">Pro • $12/mo • 200 credits (Most Popular)</span>
