@@ -235,3 +235,23 @@ export async function addCreditsToUser(uid: string, credits: number, source: str
   const updated = await userRef.get();
   return updated.data() as UserData;
 }
+
+// Update user subscription (for recurring subscriptions)
+export async function updateUserSubscription(uid: string, subscriptionData: any): Promise<UserData> {
+  const userRef = db.collection('users').doc(uid);
+  const updates = {
+    ...subscriptionData,
+    updatedAt: new Date(),
+  };
+  
+  try {
+    await userRef.set(updates, { merge: true });
+    console.log(`✅ Updated subscription for user ${uid}:`, subscriptionData);
+  } catch (e: any) {
+    console.error('❌ Firestore update() failed updateUserSubscription uid=', uid, e.message || e);
+    throw e;
+  }
+  
+  const updated = await userRef.get();
+  return updated.data() as UserData;
+}
