@@ -112,11 +112,11 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
           
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mt-6">
             <Badge className="bg-yellow-400 text-yellow-800 px-4 py-2 text-lg mb-4">
-              Premium Upgrade
+              Unlock More
             </Badge>
-            <h4 className="text-2xl text-white mb-4">Get 10 credits for just</h4>
-            <div className="text-5xl text-white mb-2">$3</div>
-            <p className="text-blue-100">Cancel anytime</p>
+            <h4 className="text-2xl text-white mb-4">Starting from</h4>
+            <div className="text-5xl text-white mb-2">$5/mo</div>
+            <p className="text-blue-100">50 credits monthly • Cancel anytime</p>
           </div>
         </motion.div>
 
@@ -128,11 +128,11 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
           transition={{ delay: 0.6 }}
         >
           {[
-            'Unlimited photo checks',
-            'Faster priority processing',
-            'Deeper AI insights',
-            'No ads',
-            'Simple credits: 1 photo = 1 credit'
+            'Monthly credit allowance',
+            'Credits reset every month',
+            'Simple: 1 credit = 1 photo',
+            'Fast processing',
+            'Cancel anytime'
           ].map((feature, index) => (
             <motion.div
               key={feature}
