@@ -403,10 +403,20 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
   }
 
   try {
-    // Remove any data URI prefix if present
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      // Extract MIME type and base64 data from data URI
+      let mimeType = 'image/jpeg'; // default
+      let base64Data = imageBase64;
+    
+      // Check if it's a data URI (data:image/png;base64,...)
+      const dataUriMatch = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (dataUriMatch) {
+        mimeType = dataUriMatch[1]; // e.g., 'image/png'
+        base64Data = dataUriMatch[2]; // the actual base64 string
+      }
+    
     console.log('📤 Calling Vertex AI Gemini (vision)...');
     console.log(`🏷️  Category: ${category || 'none'}`);
+      console.log(`🖼️  MIME Type: ${mimeType}`);
 
     const key = normalizeVibeKey(category);
     const selectedPrompt = vibePromptsFinal[key];
@@ -420,7 +430,7 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
             { text: selectedPrompt },
             {
               inlineData: {
-                mimeType: 'image/jpeg',
+                  mimeType: mimeType,
                 data: base64Data,
               },
             },
