@@ -23,9 +23,13 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
     try {
       await signInWithGoogle();
       // onAuthStateChanged in App will move the flow forward
-    } catch (err) {
+    } catch (err: any) {
       console.error('Google sign-in failed', err);
-      setError('Failed to sign in with Google. Please try again.');
+      // Use the user-friendly message from firebaseConfig if available
+      const userMessage = err instanceof Error 
+        ? err.message 
+        : 'Failed to sign in with Google. Please try again.';
+      setError(userMessage);
     } finally {
       setLoading(false);
     }
@@ -57,7 +61,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         {step === 'start' ? (
           <motion.button
             onClick={handleStart}
-            className="bg-white/20 backdrop-blur-sm text-white px-8 py-3 rounded-full border border-white/30"
+            className="bg-white/20 backdrop-blur-sm text-white px-8 py-3 rounded-full border border-white/30 hover:bg-white/30 transition-colors"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -67,14 +71,23 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
           <div className="flex flex-col items-center space-y-3">
             <motion.button
               onClick={handleGoogleLogin}
-              className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-full shadow-md flex items-center justify-center gap-3 w-full max-w-xs mx-auto"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={loading}
+              className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-full shadow-md flex items-center justify-center gap-3 w-full max-w-xs mx-auto hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
+              whileHover={{ scale: loading ? 1 : 1.02 }}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
               aria-busy={loading}
             >
               {loading ? 'Signing in...' : 'Login with Google'}
             </motion.button>
-            {error && <p className="text-sm text-red-200 text-center">{error}</p>}
+            {error && (
+              <motion.div 
+                className="text-sm text-red-100 text-center bg-red-900/30 rounded-lg p-3 max-w-xs"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {error}
+              </motion.div>
+            )}
           </div>
         )}
       </div>

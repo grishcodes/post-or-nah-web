@@ -19,17 +19,49 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 } as const;
 
+// Validate Firebase config
+const requiredFirebaseKeys = ['apiKey', 'authDomain', 'projectId'] as const;
+const missingKeys = requiredFirebaseKeys.filter(
+  key => !firebaseConfig[key]
+);
+
+if (missingKeys.length > 0) {
+  console.error('❌ Missing Firebase config keys:', missingKeys.join(', '));
+  console.error('Please set environment variables starting with VITE_FIREBASE_');
+}
+
 // Initialize Firebase
-const app: FirebaseApp = initializeApp(firebaseConfig);
-const analytics: Analytics = getAnalytics(app);
+let app: FirebaseApp;
+let analytics: Analytics;
+try {
+  app = initializeApp(firebaseConfig);
+  console.log('✅ Firebase initialized successfully');
+  
+  // Initialize analytics (but don't fail if it doesn't work)
+  try {
+    analytics = getAnalytics(app);
+  } catch (e) {
+    console.warn('⚠️ Analytics not available (might be blocked by privacy settings)');
+    analytics = {} as Analytics;
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Firebase:', error);
+  throw error;
+}
 
 // Auth exports
 const auth: Auth = getAuth(app);
+
+// Configure auth to work better with privacy-restricted environments
+auth.settings.appVerificationDisabledForTesting = false;
+
 const provider: GoogleAuthProvider = new GoogleAuthProvider();
 
 /**
  * Launches a Google Sign-In popup and returns the signed-in user.
  * Errors are caught and logged; caller can handle the thrown error.
+ * 
+ * Handles Safari private browsing mode and privacy-restricted regions.
  */
 async function signInWithGoogle(): Promise<User> {
   try {
@@ -38,11 +70,26 @@ async function signInWithGoogle(): Promise<User> {
     // const credential = GoogleAuthProvider.credentialFromResult(result);
     // const token = credential.accessToken;
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
+    // Provide user-friendly error messages
+    let userMessage = 'Google sign-in failed. Please try again.';
+    
+    if (error.code === 'auth/popup-blocked') {
+      userMessage = 'Sign-in popup was blocked. Please check your browser settings.';
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      userMessage = 'Sign-in was cancelled. Please try again.';
+    } else if (error.code === 'auth/network-request-failed') {
+      userMessage = 'Network error. Please check your internet connection and try again.';
+    } else if (error.message?.includes('Failed to fetch')) {
+      userMessage = 'Connection failed. This might be due to private browsing mode or strict privacy settings. Please try in normal browsing mode.';
+    }
+    
     console.error('Google sign-in error:', error);
-    throw error;
+    const err = new Error(userMessage);
+    (err as any).originalError = error;
+    throw err;
   }
 }
 
-export { auth, provider, signInWithGoogle };
+export { app, auth, provider, analytics, signInWithGoogle };
 export type { User };

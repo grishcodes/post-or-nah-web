@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Upload, Camera } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { SafariCompat } from '../lib/safariCompat';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
@@ -108,7 +109,8 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         let json: any = null;
         for (const url of candidates) {
           try {
-            const res = await fetch(url, {
+            // Use Safari-compatible fetch
+            const res = await SafariCompat.safeFetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ imageBase64: base64, category: selectedVibes.join(', ') }),
@@ -159,10 +161,19 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       } catch (err: any) {
         console.error('Feedback request failed', err);
         const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
-        if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+        
+        // Provide helpful error messages based on the error type
+        if (msg.includes('private browsing mode') || msg.includes('private') || msg.includes('incognito')) {
           setError(
-            `${msg} — backend unreachable. Make sure your API server is running.
-If you use Next.js API routes, run 'npm run dev' from the project root. If you use the optional Express server, run 'node server.js' and ensure PORT/CORS are configured.`
+            'Private browsing/incognito mode detected. Try using normal browsing mode for full functionality.'
+          );
+        } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+          setError(
+            `Connection error: ${msg}\n\nPlease check:\n1. Your internet connection\n2. If your backend server is running\n3. Try disabling VPN or strict privacy settings`
+          );
+        } else if (msg.includes('storage') || msg.includes('unable to save')) {
+          setError(
+            'Browser storage is restricted. Try disabling private browsing mode or check privacy settings.'
           );
         } else {
           setError(msg);
@@ -171,6 +182,12 @@ If you use Next.js API routes, run 'npm run dev' from the project root. If you u
         setLoading(false);
       }
     };
+
+    reader.onerror = () => {
+      setError('Failed to read file. Please try a different image.');
+      setLoading(false);
+    };
+
     reader.readAsDataURL(uploadedPhoto);
   };
 

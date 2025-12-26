@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { auth } from '../firebaseConfig';
+import { storage } from '../lib/storageHelper';
 import { User } from 'firebase/auth';
 
 interface UserSubscription {
@@ -51,8 +52,8 @@ export function useUserSubscription(user: User | null) {
     } catch (err) {
       console.error('Error fetching subscription:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      // Fallback to localStorage for backwards compatibility
-      const saved = localStorage.getItem('postOrNahChecks');
+      // Fallback to safe storage for backwards compatibility
+      const saved = storage.getItem('postOrNahChecks');
       if (saved) {
         setSubscription({ checksUsed: parseInt(saved, 10), creditsBalance: 0, isPremium: false });
       }
@@ -88,14 +89,14 @@ export function useUserSubscription(user: User | null) {
         subscriptionEndDate: data.subscriptionEndDate ? new Date(data.subscriptionEndDate) : undefined,
       });
       
-      // Also update localStorage for backwards compatibility
-      localStorage.setItem('postOrNahChecks', data.checksUsed.toString());
+      // Also update safe storage for backwards compatibility
+      storage.setItem('postOrNahChecks', data.checksUsed.toString());
     } catch (err) {
       console.error('Error incrementing check:', err);
-      // Fallback to localStorage
+      // Fallback to safe storage
       setSubscription(prev => {
         const newChecks = prev.checksUsed + 1;
-        localStorage.setItem('postOrNahChecks', newChecks.toString());
+        storage.setItem('postOrNahChecks', newChecks.toString());
         return { ...prev, checksUsed: newChecks };
       });
     }
