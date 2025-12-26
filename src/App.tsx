@@ -24,7 +24,7 @@ export default function App() {
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
   
   // Use the new backend-powered subscription hook
-  const { checksUsed, isPremium, creditsBalance, loading, incrementCheck, updatePremium } = useUserSubscription(user);
+  const { checksUsed, isPremium, creditsBalance, loading, incrementCheck, updatePremium, refetch } = useUserSubscription(user);
 
   // Listen for Firebase auth state changes
   useEffect(() => {
@@ -41,13 +41,24 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // Refetch subscription data when returning from payment (e.g., after Stripe checkout)
+  useEffect(() => {
+    if (user && currentScreen === 'upload') {
+      // Slight delay to allow webhook to process
+      const timer = setTimeout(() => {
+        refetch?.();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, currentScreen, refetch]);
+
   const handleSplashComplete = () => {
     setCurrentScreen('upload');
   };
 
   const handlePhotoUpload = async (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => {
     // Check if user has reached free limit and isn't premium
-    if (checksUsed >= 3 && !isPremium) {
+    if (checksUsed >= 3 && !isPremium && creditsBalance === 0) {
       setCurrentScreen('subscription');
       return;
     }
