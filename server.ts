@@ -403,26 +403,19 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
   }
 
   try {
-      // Extract MIME type and base64 data from data URI
-      let mimeType = 'image/jpeg'; // default
-      let base64Data = imageBase64;
+    // Extract MIME type and base64 data from data URI
+    let mimeType = 'image/jpeg'; // default
+    let base64Data = imageBase64;
     
-      console.log('🔍 RAW imageBase64 length:', imageBase64.length);
-      console.log('🔍 RAW imageBase64 first 100 chars:', imageBase64.substring(0, 100));
-      
-      // Check if it's a data URI (data:image/png;base64,...)
-      const dataUriMatch = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
-      console.log('🔍 dataUriMatch result:', dataUriMatch ? 'MATCHED' : 'NO MATCH');
-      if (dataUriMatch) {
-        mimeType = dataUriMatch[1]; // e.g., 'image/png'
-        base64Data = dataUriMatch[2]; // the actual base64 string
-      }
-    
-    console.log('📤 Calling Vertex AI Gemini (vision)...');
-    console.log(`🏷️  Category: ${category || 'none'}`);
-      console.log(`🖼️  MIME Type: ${mimeType}`);
-      console.log('🖼️  Base64 data length:', base64Data.length);
-      console.log('🖼️  Base64 first 100 chars:', base64Data.substring(0, 100));
+    // Check if it's a data URI (data:image/png;base64,...)
+    const dataUriMatch = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (dataUriMatch) {
+      mimeType = dataUriMatch[1]; // e.g., 'image/png'
+      base64Data = dataUriMatch[2]; // the actual base64 string
+      console.log(`✅ MIME extracted: ${mimeType}`);
+    } else {
+      console.log(`⚠️  No MIME match. Using default: ${mimeType}`);
+    }
 
     const key = normalizeVibeKey(category);
     const selectedPrompt = vibePromptsFinal[key];
@@ -644,22 +637,16 @@ app.post('/api/user/add-credits', async (req: Request, res: Response) => {
 });
 
 app.post('/api/feedback', async (req: Request, res: Response) => {
+  console.log('✅ /api/feedback endpoint hit!');
+  
   const { imageBase64, category } = req.body;
 
   if (!imageBase64) {
+    console.log('❌ No imageBase64 in request body');
     return res.status(400).json({ error: 'imageBase64 is a required field.' });
   }
 
-  const pureBase64 = imageBase64.split(',').pop();
-  if (!pureBase64) {
-    return res.status(400).json({ error: 'Invalid base64 string format.' });
-  }
-
-  console.log('📨 Received /api/feedback request');
-  console.log('📨 imageBase64 type:', typeof imageBase64);
-  console.log('📨 imageBase64 length:', imageBase64.length);
-  console.log('📨 imageBase64 first 150 chars:', imageBase64.substring(0, 150));
-  console.log('📨 category:', category);
+  console.log(`📤 Got imageBase64, length: ${imageBase64.length}, category: ${category}`);
   
   // Pass the full data URI so getVertexFeedback can extract MIME type correctly
   const feedback = await getVertexFeedback(imageBase64, category);
