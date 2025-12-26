@@ -608,15 +608,9 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'STRIPE_SECRET_KEY not set' });
     }
 
-    // Use environment variables for success/cancel URLs, default to localhost:5000 for dev
+    // Use environment variables for success/cancel URLs
     const successUrl = process.env.FRONTEND_SUCCESS_URL || 'http://localhost:5000/success';
     const cancelUrl = process.env.FRONTEND_CANCEL_URL || 'http://localhost:5000/cancel';
-
-    // Helpful debug logging to diagnose session creation issues
-    try {
-      const keyPrefix = stripeSecret.slice(0, 7);
-      console.log(`[Create Checkout] priceId=${priceId} userId=${userId} successUrl=${successUrl} cancelUrl=${cancelUrl} keyPrefix=${keyPrefix}`);
-    } catch {}
 
     const stripe = new Stripe(stripeSecret, { apiVersion: '2025-10-29.clover' });
 
