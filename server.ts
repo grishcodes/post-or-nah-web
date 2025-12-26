@@ -650,7 +650,8 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
   }
 
   console.log('Received image for feedback. Calling Vertex AI Gemini...');
-  const feedback = await getVertexFeedback(pureBase64, category);
+  // Pass the full data URI so getVertexFeedback can extract MIME type correctly
+  const feedback = await getVertexFeedback(imageBase64, category);
   res.status(200).json(feedback);
 });
 
