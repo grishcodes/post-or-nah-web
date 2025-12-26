@@ -55,7 +55,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Requ
         // Map new recurring price IDs to monthly credits
         let monthlyCredits = 0;
         if (priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt') monthlyCredits = 50;      // Starter
-        else if (priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ') monthlyCredits = 200; // Pro
+        else if (priceId === 'price_1SiRKCFvu58DRDkCGoZeG8Er') monthlyCredits = 200; // Pro
         else if (priceId === 'price_1SiPqnFvu58DRDkCWwdway9a') monthlyCredits = 999999; // Unlimited (soft cap)
 
         if (monthlyCredits > 0) {
@@ -97,14 +97,14 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Requ
         // Subscription renewed or plan changed - reset monthly credits
         let monthlyCredits = 0;
         if (priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt') monthlyCredits = 50;
-        else if (priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ') monthlyCredits = 200;
+        else if (priceId === 'price_1SiRKCFvu58DRDkCGoZeG8Er') monthlyCredits = 200;
         else if (priceId === 'price_1SiPqnFvu58DRDkCWwdway9a') monthlyCredits = 999999;
 
         if (monthlyCredits > 0) {
           await updateUserSubscription(userId, {
             subscriptionId: subscription.id,
             tier: priceId === 'price_1SiPpnFvu58DRDkCWZQENIqt' ? 'starter' 
-                  : priceId === 'price_1SiPqIFvu58DRDkC7UQP8hiJ' ? 'pro' 
+                  : priceId === 'price_1SiRKCFvu58DRDkCGoZeG8Er' ? 'pro' 
                   : 'unlimited',
             monthlyCredits,
             creditsBalance: monthlyCredits,
