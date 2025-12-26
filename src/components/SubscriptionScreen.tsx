@@ -16,51 +16,39 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Handle main "Choose a plan" button - redirect to Stripe with the Pro plan
 async function handleChoosePlan(user: User | null) {
-  console.log('🎯 Choose plan button clicked');
   // Default to the middle option (Pro - $12/month) for the main button
   await handlePurchase('price_1SiPqIFvu58DRDkC7UQP8hiJ', user);
 }
 
 // Call Stripe Checkout via your backend
 async function handlePurchase(priceId: string, user: User | null) {
-  console.log('🛒 handlePurchase called with:', { priceId, userId: user?.uid });
   try {
     if (!user) {
-      console.error('❌ User not signed in');
       alert('Please sign in to make a purchase');
       return;
     }
 
     const userId = user.uid;
-    console.log('📡 Making request to backend...');
-    console.log('🔗 Backend URL:', API_URL);
 
     const res = await fetch(`${API_URL}/create-checkout-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId, userId }),
     });
-
-    console.log('📨 Response status:', res.status);
     
     if (!res.ok) {
       const errorText = await res.text();
-      console.error('❌ Stripe server error:', errorText);
       throw new Error(`HTTP ${res.status}: ${errorText}`);
     }
 
     const data = await res.json();
-    console.log('✅ Stripe response:', data);
     
     if (data.url) {
-      console.log('🔀 Redirecting to Stripe checkout:', data.url);
-      window.location.href = data.url; // redirect to Stripe Checkout
+      window.location.href = data.url;
     } else {
-      console.error('❌ No URL returned from backend:', data);
       alert('Error: No checkout URL received');
     }
   } catch (err) {
-    console.error('handlePurchase error:', err);
     const message = err instanceof Error ? err.message : 'Unknown error occurred';
     alert(`Payment error: ${message}. Please try again or contact support.`);
   }
