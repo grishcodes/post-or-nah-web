@@ -15,11 +15,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle redirect result from mobile sign-in
-    getRedirectResult(auth)
-      .catch((error) => {
-        console.error('Error handling redirect result:', error);
-      });
+    // Handle redirect result from sign-in redirect (mobile)
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log('User signed in via redirect:', result.user);
+          setUser(result.user);
+        }
+      } catch (error: any) {
+        // Only log errors that aren't related to missing state
+        // (missing state might be normal if page was just loaded)
+        if (!error.message?.includes('missing initial state')) {
+          console.error('Error handling redirect result:', error);
+        }
+      }
+    };
+
+    handleRedirect();
 
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);

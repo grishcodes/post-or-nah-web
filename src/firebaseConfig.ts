@@ -58,36 +58,43 @@ auth.settings.appVerificationDisabledForTesting = false;
 const provider: GoogleAuthProvider = new GoogleAuthProvider();
 
 /**
- * Launches Google Sign-In using popup on desktop or redirect on mobile.
- * Automatically detects device type and uses the appropriate method.
+ * Launches Google Sign-In using popup (preferred) or redirect as fallback.
+ * Popup is used as the primary method to avoid sessionStorage issues in privacy-partitioned environments.
  * Errors are caught and logged; caller can handle the thrown error.
  * 
  * Handles Safari private browsing mode, privacy-restricted regions, and mobile browsers.
  */
 async function signInWithGoogle(): Promise<User> {
   try {
-    // Check if running on mobile
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
     let result;
     
-    if (isMobile) {
-      // Use redirect for mobile (includes in-app browsers)
-      await signInWithRedirect(auth, provider);
-      // signInWithRedirect will redirect the page, so we won't reach here immediately
-      // The redirect result will be handled on page reload
-      result = await getRedirectResult(auth);
-      if (!result) {
-        throw new Error('Redirect sign-in result is null');
-      }
-    } else {
-      // Use popup for desktop
+    // Try popup first for all devices (most reliable, avoids sessionStorage issues)
+    try {
       result = await signInWithPopup(auth, provider);
+    } catch (popupError: any) {
+      // If popup is blocked on mobile, fall back to redirect
+      if ((popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') && isMobile()) {
+        console.log('Popup blocked on mobile, attempting redirect...');
+        // Store a marker that we're attempting redirect
+        try {
+          localStorage.setItem('auth_redirect_attempt', Date.now().toString());
+        } catch (e) {
+          console.warn('localStorage not available');
+        }
+        
+        await signInWithRedirect(auth, provider);
+        // signInWithRedirect will redirect the page, this won't return
+        return null as unknown as User;
+      }
+      throw popupError;
     }
     
     // This gives you a Google Access Token. You can use it to access the Google API.
     // const credential = GoogleAuthProvider.credentialFromResult(result);
     // const token = credential.accessToken;
+    if (!result?.user) {
+      throw new Error('Sign-in failed: No user returned');
+    }
     return result.user;
   } catch (error: any) {
     // Provide user-friendly error messages
@@ -99,6 +106,8 @@ async function signInWithGoogle(): Promise<User> {
       userMessage = 'Sign-in was cancelled. Please try again.';
     } else if (error.code === 'auth/network-request-failed') {
       userMessage = 'Network error. Please check your internet connection and try again.';
+    } else if (error.message?.includes('missing initial state')) {
+      userMessage = 'Session expired. Please refresh the page and try again.';
     } else if (error.message?.includes('Failed to fetch')) {
       userMessage = 'Connection failed. This might be due to private browsing mode or strict privacy settings. Please try in normal browsing mode.';
     } else if (error.message?.includes('disallowed_useragent')) {
@@ -110,6 +119,13 @@ async function signInWithGoogle(): Promise<User> {
     (err as any).originalError = error;
     throw err;
   }
+}
+
+/**
+ * Checks if running on a mobile device
+ */
+function isMobile(): boolean {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 export { app, auth, provider, analytics, signInWithGoogle };
