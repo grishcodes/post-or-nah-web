@@ -2,7 +2,7 @@
 // Firebase initialization and auth helpers
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAnalytics, Analytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider, signInWithPopup, Auth, User } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, Auth, User } from "firebase/auth";
 
 // Your web app's Firebase configuration (read from Vite env)
 // Add these to your .env:
@@ -58,14 +58,33 @@ auth.settings.appVerificationDisabledForTesting = false;
 const provider: GoogleAuthProvider = new GoogleAuthProvider();
 
 /**
- * Launches a Google Sign-In popup and returns the signed-in user.
+ * Launches Google Sign-In using popup on desktop or redirect on mobile.
+ * Automatically detects device type and uses the appropriate method.
  * Errors are caught and logged; caller can handle the thrown error.
  * 
- * Handles Safari private browsing mode and privacy-restricted regions.
+ * Handles Safari private browsing mode, privacy-restricted regions, and mobile browsers.
  */
 async function signInWithGoogle(): Promise<User> {
   try {
-    const result = await signInWithPopup(auth, provider);
+    // Check if running on mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    let result;
+    
+    if (isMobile) {
+      // Use redirect for mobile (includes in-app browsers)
+      await signInWithRedirect(auth, provider);
+      // signInWithRedirect will redirect the page, so we won't reach here immediately
+      // The redirect result will be handled on page reload
+      result = await getRedirectResult(auth);
+      if (!result) {
+        throw new Error('Redirect sign-in result is null');
+      }
+    } else {
+      // Use popup for desktop
+      result = await signInWithPopup(auth, provider);
+    }
+    
     // This gives you a Google Access Token. You can use it to access the Google API.
     // const credential = GoogleAuthProvider.credentialFromResult(result);
     // const token = credential.accessToken;
@@ -82,6 +101,8 @@ async function signInWithGoogle(): Promise<User> {
       userMessage = 'Network error. Please check your internet connection and try again.';
     } else if (error.message?.includes('Failed to fetch')) {
       userMessage = 'Connection failed. This might be due to private browsing mode or strict privacy settings. Please try in normal browsing mode.';
+    } else if (error.message?.includes('disallowed_useragent')) {
+      userMessage = 'Mobile authentication not properly configured. Please check with the app administrator.';
     }
     
     console.error('Google sign-in error:', error);

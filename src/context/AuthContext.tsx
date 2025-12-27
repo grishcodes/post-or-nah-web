@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '../firebaseConfig';
-import { onAuthStateChanged, signOut as firebaseSignOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signOut as firebaseSignOut, getRedirectResult, User } from 'firebase/auth';
 
 type AuthContextValue = {
   user: User | null;
@@ -15,6 +15,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle redirect result from mobile sign-in
+    getRedirectResult(auth)
+      .catch((error) => {
+        console.error('Error handling redirect result:', error);
+      });
+
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
