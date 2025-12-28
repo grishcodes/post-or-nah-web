@@ -545,6 +545,75 @@ function verifyAdmin(req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
 }
 
+// ===== OAuth State Storage for Storage-Partitioned Environments =====
+// Stores OAuth state server-side to handle Instagram's in-app browser,
+// Safari private mode, and other storage-partitioned environments
+
+interface OAuthState {
+  state: string;
+  nonce: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+const oauthStateStore = new Map<string, OAuthState>(); // In production, use Redis or database
+const OAUTH_STATE_EXPIRY = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Generate a random string for state parameter
+ */
+function generateRandomString(length: number = 32): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * Create and store OAuth state server-side
+ */
+function createOAuthState(): OAuthState {
+  const state = generateRandomString();
+  const nonce = generateRandomString();
+  const now = Date.now();
+  const oauthState: OAuthState = {
+    state,
+    nonce,
+    createdAt: now,
+    expiresAt: now + OAUTH_STATE_EXPIRY,
+  };
+  oauthStateStore.set(state, oauthState);
+  return oauthState;
+}
+
+/**
+ * Retrieve and validate OAuth state
+ */
+function getAndValidateOAuthState(state: string): OAuthState | null {
+  const oauthState = oauthStateStore.get(state);
+  if (!oauthState) return null;
+  
+  // Check if expired
+  if (Date.now() > oauthState.expiresAt) {
+    oauthStateStore.delete(state);
+    return null;
+  }
+  
+  return oauthState;
+}
+
+// Cleanup expired states periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, state] of oauthStateStore.entries()) {
+    if (now > state.expiresAt) {
+      oauthStateStore.delete(key);
+    }
+  }
+}, 60 * 1000); // Every minute
+
 // API Endpoints
 
 // Health check endpoint - helps detect connectivity issues
@@ -710,6 +779,109 @@ app.post('/create-checkout-session', async (req: Request, res: Response) => {
     console.error('[Create Checkout] Error:', err);
     const message = err instanceof Error ? err.message : 'Unknown error';
     return res.status(500).json({ error: 'Failed to create checkout session', detail: message });
+  }
+});
+
+// ===== OAuth Redirect Endpoints =====
+// These endpoints handle OAuth for storage-partitioned environments like Instagram's in-app browser
+
+/**
+ * POST /api/oauth/init
+ * Initialize OAuth flow and return Google authorization URL
+ * Returns state, nonce, and authorization URL to client
+ */
+app.post('/api/oauth/init', (req: Request, res: Response) => {
+  try {
+    const state = createOAuthState();
+    
+    // Google OAuth parameters
+    const clientId = process.env.VITE_FIREBASE_API_KEY; // Will use actual OAuth 2.0 client ID
+    const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback`;
+    const scope = 'openid profile email';
+    
+    // Build authorization URL manually (since we can't rely on Firebase SDK in storage-partitioned envs)
+    // This is a simplified version - in production, use proper OAuth libraries
+    const params = new URLSearchParams({
+      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID || clientId || '',
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+      state: state.state,
+      nonce: state.nonce,
+      prompt: 'consent',
+    });
+    
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    
+    console.log(`[OAuth] Initialized OAuth flow with state: ${state.state.substring(0, 8)}...`);
+    
+    res.json({
+      authUrl,
+      state: state.state,
+      expiresIn: OAUTH_STATE_EXPIRY / 1000, // seconds
+    });
+  } catch (error) {
+    console.error('[OAuth] Init error:', error);
+    res.status(500).json({ error: 'Failed to initialize OAuth' });
+  }
+});
+
+/**
+ * POST /api/oauth/callback
+ * Handle OAuth callback from Google
+ * Exchange authorization code for ID token and verify with Firebase
+ */
+app.post('/api/oauth/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, state } = req.body;
+    
+    if (!code || !state) {
+      return res.status(400).json({ error: 'Missing code or state parameter' });
+    }
+    
+    // Validate state
+    const oauthState = getAndValidateOAuthState(state);
+    if (!oauthState) {
+      return res.status(400).json({ error: 'Invalid or expired state parameter' });
+    }
+    
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+        client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback`,
+      }).toString(),
+    });
+    
+    if (!tokenResponse.ok) {
+      const error = await tokenResponse.json();
+      console.error('[OAuth] Token exchange failed:', error);
+      return res.status(400).json({ error: 'Failed to exchange authorization code' });
+    }
+    
+    const tokens = await tokenResponse.json();
+    
+    // The ID token can be used to sign in with Firebase
+    // Client will receive this token and use it with Firebase
+    console.log(`[OAuth] Successfully exchanged code for tokens`);
+    
+    // Clean up the state after use
+    oauthStateStore.delete(state);
+    
+    res.json({
+      success: true,
+      idToken: tokens.id_token,
+      accessToken: tokens.access_token,
+      expiresIn: tokens.expires_in,
+    });
+  } catch (error) {
+    console.error('[OAuth] Callback error:', error);
+    res.status(500).json({ error: 'Failed to process OAuth callback' });
   }
 });
 
