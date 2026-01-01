@@ -24,7 +24,7 @@ const VIBE_CATEGORIES = [
   'Classy core',
   'Rizz core',
   'Matcha core',
-  'Bad bih vibe'
+  'Baddie vibe'
 ];
 
 export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBalance = 0 }: UploadScreenProps) {
