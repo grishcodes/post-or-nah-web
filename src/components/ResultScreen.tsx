@@ -31,7 +31,7 @@ const generateAIResponse = (vibes: string[]) => {
       positive: { verdict: 'Post ✅', suggestions: ['Calm and serene vibes', 'Perfect for mindful content'] },
       negative: { verdict: 'Nah ❌', suggestions: ['Add more green tones', 'Softer, more natural lighting'] }
     },
-    'Bad bih vibe': {
+    'Baddie vibe': {
       positive: { verdict: 'Post ✅', suggestions: ['Bold and fierce energy!', 'Confidence is on point'] },
       negative: { verdict: 'Nah ❌', suggestions: ['Step up your outfit game', 'More dramatic lighting'] }
     }

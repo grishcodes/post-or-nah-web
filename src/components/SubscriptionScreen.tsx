@@ -103,8 +103,8 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
               Unlock More
             </Badge>
             <h4 className="text-2xl text-white mb-4">Starting from</h4>
-            <div className="text-5xl text-white mb-2">$5/mo</div>
-            <p className="text-blue-100">50 credits monthly • Cancel anytime</p>
+            <div className="text-5xl text-white mb-2">$1/mo</div>
+            <p className="text-blue-100">10 credits monthly • Cancel anytime</p>
           </div>
         </motion.div>
 
@@ -168,6 +168,12 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
         >
 
           <div className="grid grid-cols-1 gap-3">
+            <Button
+              onClick={() => handlePurchase('price_1Skb33Fvu58DRDkCqEOvW03I', user)}
+              className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"
+            >
+              Pre Start • $1/mo • 10 credits
+            </Button>
             <Button
               onClick={() => handlePurchase('price_1SiPpnFvu58DRDkCWZQENIqt', user)}
               className="w-full bg-white text-blue-800 hover:bg-white/90 py-3 rounded-xl shadow"

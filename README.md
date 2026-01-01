@@ -5,7 +5,7 @@ A web application that helps you decide whether to post your photos on social me
 ## 🎯 Features
 
 - **AI Photo Analysis**: Upload photos and get "Post ✅" or "Nah ❌" verdicts with suggestions
-- **Vibe Categories**: Aesthetic core, Classy core, Rizz core, Matcha core, Bad bih vibe
+- **Vibe Categories**: Aesthetic core, Classy core, Rizz core, Matcha core, Baddie vibe
 - **Google Authentication**: Sign in with Google via Firebase
 - **Free Tier**: 3 free photo checks per month
 - **Premium Upgrade**: Unlimited checks for $9/month (demo mode)
