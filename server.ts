@@ -6,6 +6,7 @@ import fs from 'fs';
 import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
 import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, updateUserSubscription, auth as adminAuth } from './firebaseAdmin.js';
+import { logCreditChange, logPremiumStatusChange, logSubscriptionUpdate } from './firebaseAuditLog.js';
 
 // Load environment variables
 dotenv.config();
@@ -689,6 +690,20 @@ app.get('/api/ping', (req: Request, res: Response) => {
   res.status(200).json({ ok: true });
 });
 
+// Get audit logs for a user (admin endpoint)
+app.get('/api/audit-logs/:userId', verifyFirebaseToken, verifyAdmin, async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { getAllAuditLogs } = await import('./firebaseAuditLog.js');
+    const logs = await getAllAuditLogs(100);
+    const userLogs = logs.filter(log => log.userId === userId);
+    res.status(200).json(userLogs);
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
 // Get user subscription data
 app.get('/api/user/subscription', verifyFirebaseToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -764,7 +779,22 @@ app.post('/api/user/add-credits', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid userId or credits amount' });
     }
 
+    // Get current balance before update
+    const currentUserData = await getUserData(userId);
+    const oldBalance = currentUserData.creditsBalance || 0;
+
     const userData = await addCreditsToUser(userId, credits, source || 'stripe_purchase');
+
+    // Log the credit addition
+    await logCreditChange(
+      userId,
+      'credits_added',
+      oldBalance,
+      userData.creditsBalance,
+      credits,
+      `Added via ${source || 'stripe_purchase'}`,
+      source || 'stripe_webhook'
+    );
 
     res.status(200).json({
       success: true,
