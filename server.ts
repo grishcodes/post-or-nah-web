@@ -6,7 +6,7 @@ import fs from 'fs';
 import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
 import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, updateUserSubscription, auth as adminAuth } from './firebaseAdmin.js';
-import { logCreditChange, logPremiumStatusChange, logSubscriptionUpdate } from './firebaseAuditLog.js';
+import { logCreditChange, logPremiumStatusChange, logSubscriptionUpdate, getAllAuditLogs } from './firebaseAuditLog.js';
 
 // Load environment variables
 dotenv.config();
@@ -694,7 +694,6 @@ app.get('/api/ping', (req: Request, res: Response) => {
 app.get('/api/audit-logs/:userId', verifyFirebaseToken, verifyAdmin, async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const { getAllAuditLogs } = await import('./firebaseAuditLog.js');
     const logs = await getAllAuditLogs(100);
     const userLogs = logs.filter(log => log.userId === userId);
     res.status(200).json(userLogs);
