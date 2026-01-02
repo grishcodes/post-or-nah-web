@@ -61,33 +61,8 @@ export async function getUserData(uid: string): Promise<UserData> {
   if (doc.exists) {
     const data = doc.data() as UserData;
     
-    // Migration fix: if user has isPremium=true but creditsBalance=0,
-    // they were marked premium by old buggy code without actual credits
-    // Set them to 10 credits (starter pack amount)
-    if (data.isPremium === true && (data.creditsBalance === 0 || data.creditsBalance === undefined)) {
-      console.log(`🔧 Migrating user ${uid}: isPremium=true but creditsBalance=0, setting to 10 credits`);
-      try {
-        await userRef.update({
-          creditsBalance: 10,
-          isPremium: false,
-          updatedAt: new Date(),
-        });
-        return {
-          ...data,
-          creditsBalance: 10,
-          isPremium: false,
-        };
-      } catch (e: any) {
-        console.error('❌ Migration failed for user', uid, e.message || e);
-        // Return with fixed data even if update fails
-        return {
-          ...data,
-          creditsBalance: 10,
-          isPremium: false,
-        };
-      }
-    }
-    
+    // Don't auto-migrate or modify premium users - they likely have active subscriptions
+    // Just return the data as-is from Firestore
     return data;
   }
   const now = new Date();
