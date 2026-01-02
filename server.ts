@@ -695,7 +695,7 @@ app.get('/api/audit-logs/:userId', verifyFirebaseToken, verifyAdmin, async (req:
   try {
     const { userId } = req.params;
     const logs = await getAllAuditLogs(100);
-    const userLogs = logs.filter(log => log.userId === userId);
+    const userLogs = logs.filter((log: any) => log.userId === userId);
     res.status(200).json(userLogs);
   } catch (error) {
     console.error('Error fetching audit logs:', error);
