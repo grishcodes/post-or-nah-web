@@ -1,6 +1,7 @@
 {
   "outputDirectory": "build",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://post-or-nah-web-gpg2j4io3q-ew.a.run.app/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
