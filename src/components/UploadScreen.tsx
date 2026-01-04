@@ -175,11 +175,16 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     setSuggestion(null);
     setError(null);
 
-    const envApiBase = import.meta.env.VITE_API_URL;
-    const apiBase = envApiBase
-      ? envApiBase.replace(/\/$/, '')
-      : (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
-    const selectBestUrl = apiBase ? `${apiBase}/api/select-best` : '/api/select-best';
+    const isLocalhost = window.location.hostname === 'localhost';
+    const selectBestUrl = isLocalhost
+      ? 'http://localhost:3001/api/select-best'
+      : import.meta.env.PROD
+        ? '/api/select-best'
+        : (() => {
+            const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
+            const apiBase = envApiBase ? envApiBase.replace(/\/$/, '') : '';
+            return apiBase ? `${apiBase}/api/select-best` : '/api/select-best';
+          })();
 
     try {
       console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
@@ -256,15 +261,21 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
 
       try {
-        // Determine API URL
-        const envApiBase = import.meta.env.VITE_API_URL;
-
-        // Prefer same-origin in production (Vercel rewrite proxies /api/* to backend)
-        const candidates = [
-          '/api/feedback',
-          envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined,
-          'http://localhost:3001/api/feedback',
-        ].filter(Boolean) as string[];
+        const isLocalhost = window.location.hostname === 'localhost';
+        const candidates = (
+          isLocalhost
+            ? ['http://localhost:3001/api/feedback']
+            : import.meta.env.PROD
+              ? ['/api/feedback']
+              : (() => {
+                  const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
+                  return [
+                    '/api/feedback',
+                    envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined,
+                    'http://localhost:3001/api/feedback',
+                  ].filter(Boolean) as string[];
+                })()
+        );
 
         let lastErr: any = null;
         let json: any = null;
