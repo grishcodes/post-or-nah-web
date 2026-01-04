@@ -29,15 +29,72 @@ const VIBE_CATEGORIES = [
 
 export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBalance = 0 }: UploadScreenProps) {
   const { user } = useAuth();
+  const [mode, setMode] = useState<'rate' | 'select'>('rate');
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [batchPreviewUrls, setBatchPreviewUrls] = useState<string[]>([]);
   const [verdict, setVerdict] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const batchInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to resize images
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxDim) {
+              height *= maxDim / width;
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          URL.revokeObjectURL(url);
+          resolve(dataUrl);
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Failed to load image: ${file.name}`));
+      };
+      
+      img.src = url;
+    });
+  };
 
   // Prevent the browser from dropping/opening images on the page (which can overlay content)
   useEffect(() => {
@@ -78,6 +135,108 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           return url;
         });
       } catch {}
+    }
+  };
+
+  const handleBatchFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const fileArray = Array.from(files).slice(0, 30); // Limit to 30
+      
+      setBatchFiles(fileArray);
+      setVerdict(null);
+      setSuggestion(null);
+      setError(null);
+      setRawResponse(null);
+
+      // Create preview URLs - convert HEIC to data URL for preview
+      const urls = fileArray.map(file => {
+        if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic')) {
+          // For HEIC, show a placeholder since browsers can't render HEIC
+          return 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23ccc%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23666%22%3EHEIC Image%3C/text%3E%3C/svg%3E';
+        }
+        return URL.createObjectURL(file);
+      });
+      
+      setBatchPreviewUrls(prev => {
+        prev.forEach(url => {
+          if (!url.startsWith('data:')) URL.revokeObjectURL(url);
+        });
+        return urls;
+      });
+    }
+  };
+
+  const handleBatchSubmit = async () => {
+    if (batchFiles.length === 0) return;
+
+    setLoading(true);
+    setVerdict(null);
+    setSuggestion(null);
+    setError(null);
+
+    const envApiBase = import.meta.env.VITE_API_URL;
+    const apiBase = envApiBase 
+      ? envApiBase.replace(/\/$/, '') 
+      : (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
+
+    try {
+      console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
+      
+      // Create FormData to handle both binary and base64
+      const formData = new FormData();
+      
+      for (let i = 0; i < batchFiles.length; i++) {
+        const file = batchFiles[i];
+        console.log(`📄 Processing file ${i + 1}: ${file.name} (${file.type})`);
+        formData.append('images', file, file.name);
+      }
+      
+      console.log(`📤 Sending request to ${apiBase}/api/select-best with ${batchFiles.length} images`);
+      
+      const response = await fetch(`${apiBase}/api/select-best`, {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header - browser will set it with boundary
+      });
+
+      console.log(`📨 Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Server error: ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Received response:', data);
+      
+      if (data.error) {
+        setError(data.message || 'Analysis failed');
+      } else {
+        const winnerIndex = data.selectedIndex || 0;
+        setVerdict(data.verdict || 'WINNER 🏆');
+        setSuggestion(data.reason || 'This is the best one!');
+
+        // Prefer backend-provided preview (fixes HEIC winners not rendering in browser)
+        const winnerPreviewDataUrl: string | undefined = typeof data.winnerPreviewDataUrl === 'string' ? data.winnerPreviewDataUrl : undefined;
+        const winnerFile = batchFiles[winnerIndex];
+        const winnerPreviewFallback = batchPreviewUrls[winnerIndex];
+
+        // Set local state (keeps filename/etc) and preview
+        setUploadedPhoto(winnerFile);
+        setPreviewUrl(winnerPreviewDataUrl || winnerPreviewFallback);
+        
+        // Trigger the parent callback to show result screen
+        onPhotoUpload(winnerPreviewDataUrl || winnerFile, ['Best Photo Selection'], data.verdict, data.reason);
+      }
+
+    } catch (err: any) {
+      console.error('❌ Batch submit error:', err);
+      const errorMessage = err.message || 'Unknown error';
+      setError(`Error: ${errorMessage}. \nTarget: ${apiBase}/api/select-best`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -247,6 +406,26 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
         >
+          {/* Mode Toggle */}
+          <div className="flex justify-center mb-6 bg-white/10 p-1 rounded-xl backdrop-blur-sm w-fit mx-auto">
+            <button
+              onClick={() => { setMode('rate'); setUploadedPhoto(null); setBatchFiles([]); }}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+                mode === 'rate' ? 'bg-white text-blue-600 shadow-sm' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              Rate My Photo
+            </button>
+            <button
+              onClick={() => { setMode('select'); setUploadedPhoto(null); setBatchFiles([]); }}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+                mode === 'select' ? 'bg-white text-blue-600 shadow-sm' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              Pick Best Photo
+            </button>
+          </div>
+
           {/* Hidden Cloudinary Upload Form */}
           <div className="hidden">
             <UploadForm onUpload={(url) => {
@@ -261,66 +440,109 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             className="hidden"
             ref={fileInputRef}
           />
+          
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleBatchFileSelect}
+            className="hidden"
+            ref={batchInputRef}
+          />
 
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
-            variant="ghost"
-          >
-            {uploadedPhoto ? (
-              <div className="flex flex-col items-center space-y-3">
-                {previewUrl && (
-                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center flex-shrink-0">
-                    <img
-                      src={previewUrl}
-                      alt="Selected preview"
-                      className="w-full h-full object-cover pointer-events-none select-none"
-                      onError={(e) => console.error('Image failed to load:', e)}
-                    />
+          {mode === 'rate' ? (
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
+              variant="ghost"
+            >
+              {uploadedPhoto ? (
+                <div className="flex flex-col items-center space-y-3">
+                  {previewUrl && (
+                    <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center flex-shrink-0">
+                      <img
+                        src={previewUrl}
+                        alt="Selected preview"
+                        className="w-full h-full object-cover pointer-events-none select-none"
+                        onError={(e) => console.error('Image failed to load:', e)}
+                      />
+                    </div>
+                  )}
+                  <Camera className="w-10 h-10" />
+                  <span className="text-xl font-medium">Photo Selected ✓</span>
+                  <span className="text-sm text-blue-100 px-4 py-1 bg-white/10 rounded-full">
+                    {uploadedPhoto.name.length > 20 ? `${uploadedPhoto.name.substring(0, 20)}...` : uploadedPhoto.name}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center space-y-3">
+                  <Upload className="w-10 h-10" />
+                  <span className="text-2xl font-medium">Upload Photo</span>
+                  <span className="text-base text-blue-100">Get AI feedback on your picture</span>
+                </div>
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => batchInputRef.current?.click()}
+              className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
+              variant="ghost"
+            >
+              {batchFiles.length > 0 ? (
+                <div className="flex flex-col items-center space-y-3">
+                  <div className="flex -space-x-4 overflow-hidden py-2">
+                    {batchPreviewUrls.slice(0, 5).map((url, i) => (
+                      <div key={i} className="w-12 h-12 rounded-full border-2 border-white overflow-hidden">
+                        <img src={url} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                    {batchFiles.length > 5 && (
+                      <div className="w-12 h-12 rounded-full border-2 border-white bg-blue-500 flex items-center justify-center text-xs font-bold">
+                        +{batchFiles.length - 5}
+                      </div>
+                    )}
                   </div>
-                )}
-                <Camera className="w-10 h-10" />
-                <span className="text-xl font-medium">Photo Selected ✓</span>
-                <span className="text-sm text-blue-100 px-4 py-1 bg-white/10 rounded-full">
-                  {uploadedPhoto.name.length > 20 ? `${uploadedPhoto.name.substring(0, 20)}...` : uploadedPhoto.name}
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-3">
-                <Upload className="w-10 h-10" />
-                <span className="text-2xl font-medium">Upload Photo</span>
-                <span className="text-base text-blue-100">Get AI feedback on your picture</span>
-              </div>
-            )}
-          </Button>
+                  <span className="text-xl font-medium">{batchFiles.length} Photos Selected ✓</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center space-y-3">
+                  <Upload className="w-10 h-10" />
+                  <span className="text-2xl font-medium">Upload Batch</span>
+                  <span className="text-base text-blue-100">Select up to 30 photos</span>
+                </div>
+              )}
+            </Button>
+          )}
 
         </motion.div>
 
-        {/* Vibe Selection */}
-        <motion.div
-          className="mb-8 relative z-10"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
-        >
-          <h3 className="text-xl text-white text-center mb-6 font-medium">Select Vibes (up to 2)</h3>
-          <div className="flex flex-wrap gap-3 justify-center">
-            {VIBE_CATEGORIES.map((vibe) => (
-              <Badge
-                key={vibe}
-                onClick={() => handleVibeToggle(vibe)}
-                className={`px-6 py-3 cursor-pointer transition-all duration-300 text-base font-medium rounded-full ${
-                  selectedVibes.includes(vibe)
-                    ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-xl scale-110 border-2 border-yellow-600'
-                    : 'bg-white/15 text-white hover:bg-white/25 border border-white/30 hover:scale-105'
-                }`}
-                variant="secondary"
-              >
-                {selectedVibes.includes(vibe) && '✓ '}{vibe}
-              </Badge>
-            ))}
-          </div>
-        </motion.div>
+        {/* Vibe Selection - Only for Rate mode */}
+        {mode === 'rate' && (
+          <motion.div
+            className="mb-8 relative z-10"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+          >
+            <h3 className="text-xl text-white text-center mb-6 font-medium">Select Vibes (up to 2)</h3>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {VIBE_CATEGORIES.map((vibe) => (
+                <Badge
+                  key={vibe}
+                  onClick={() => handleVibeToggle(vibe)}
+                  className={`px-6 py-3 cursor-pointer transition-all duration-300 text-base font-medium rounded-full ${
+                    selectedVibes.includes(vibe)
+                      ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-xl scale-110 border-2 border-yellow-600'
+                      : 'bg-white/15 text-white hover:bg-white/25 border border-white/30 hover:scale-105'
+                  }`}
+                  variant="secondary"
+                >
+                  {selectedVibes.includes(vibe) && '✓ '}{vibe}
+                </Badge>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Submit Button */}
         <motion.div
@@ -329,13 +551,23 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.6, ease: "easeOut" }}
         >
-          <Button
-            onClick={handleSubmit}
-            disabled={!uploadedPhoto || selectedVibes.length === 0}
-            className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
-          >
-            {loading ? 'Analyzing...' : 'Get AI Feedback'}
-          </Button>
+          {mode === 'rate' ? (
+            <Button
+              onClick={handleSubmit}
+              disabled={!uploadedPhoto || selectedVibes.length === 0}
+              className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
+            >
+              {loading ? 'Analyzing...' : 'Get AI Feedback'}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleBatchSubmit}
+              disabled={batchFiles.length === 0}
+              className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
+            >
+              {loading ? 'Analyzing Batch...' : 'Find Best Photo'}
+            </Button>
+          )}
         </motion.div>
 
         {/* Loading State */}

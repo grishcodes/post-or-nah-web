@@ -7,12 +7,16 @@ import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
 import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, updateUserSubscription, auth as adminAuth } from './firebaseAdmin.js';
 import { logCreditChange, logPremiumStatusChange, logSubscriptionUpdate, getAllAuditLogs } from './firebaseAuditLog.js';
+import multer from 'multer';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || process.env.BACKEND_PORT || 3001;
+
+// Setup multer for file uploads
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Get allowed origin from env, or use wildcard for development
 const allowedOrigin = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '*';
@@ -184,7 +188,78 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req: Requ
   res.status(200).json({ received: true });
 });
 
-app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+// Add multer middleware BEFORE express.json for the select-best endpoint
+app.post('/api/select-best', upload.array('images', 30), async (req: Request, res: Response) => {
+  console.log('✅ /api/select-best endpoint hit!');
+  console.log(`📊 Request headers:`, req.headers);
+  
+  const files = (req as any).files;
+  
+  console.log(`📁 Files received:`, files ? files.length : 'undefined');
+  console.log(`📝 Files array:`, files ? files.map((f: any) => f.originalname) : 'none');
+
+  if (!files || files.length === 0) {
+    console.log('❌ No images in request');
+    return res.status(400).json({ error: 'images array is required.' });
+  }
+
+  console.log(`📤 Got ${files.length} images for selection`);
+  
+  try {
+    // Convert files to base64, handling HEIC conversion
+    const imagesData: Array<{ base64: string; mimeType: string }> = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let buffer = file.buffer;
+      let mimeType = file.mimetype;
+      
+      // Convert HEIC to JPEG if needed
+      if (file.mimetype === 'image/heic' || file.mimetype === 'image/heif' || file.originalname.toLowerCase().endsWith('.heic')) {
+        console.log(`🔄 Converting HEIC file: ${file.originalname}`);
+        const converted = await convertHeicToJpeg(buffer);
+        buffer = converted.buffer;
+        mimeType = converted.converted ? 'image/jpeg' : file.mimetype;
+      }
+      
+      const base64 = buffer.toString('base64');
+      imagesData.push({ base64, mimeType });
+      console.log(`✅ Image ${i + 1} ready: ${mimeType} (${Math.round(base64.length / 1024)}KB base64)`);
+    }
+    
+    const result = await getBestPhotoSelection(imagesData);
+
+    // If selection succeeded, include a preview data URL for the winning image.
+    // This is especially important for HEIC uploads (mobile Safari), since the browser
+    // can't render HEIC directly but we convert it to JPEG on the backend.
+    if (result && !result.error) {
+      const rawIndex = typeof result.selectedIndex === 'number' ? result.selectedIndex : 0;
+      const selectedIndex = Math.min(Math.max(rawIndex, 0), imagesData.length - 1);
+      const winner = imagesData[selectedIndex];
+      const winnerPreviewDataUrl = `data:${winner.mimeType};base64,${winner.base64}`;
+      return res.status(200).json({ ...result, winnerPreviewDataUrl });
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('❌ Error processing images:', error);
+    res.status(500).json({ error: 'Failed to process images', details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
+
+// Error handler middleware for multer
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof (multer as any).MulterError) {
+    console.error('Multer error:', err);
+    return res.status(400).json({ error: 'File upload error: ' + err.message });
+  } else if (err) {
+    console.error('Middleware error:', err);
+    // Don't respond yet - let the next middleware handle it
+  }
+  next();
+});
 
 // --- Google Vertex AI Configuration ---
 const project = process.env.GCLOUD_PROJECT;
@@ -569,6 +644,118 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
   }
 }
 
+// --- Helper function to convert HEIC to JPEG ---
+async function convertHeicToJpeg(buffer: Buffer): Promise<{ buffer: Buffer; converted: boolean }> {
+  try {
+    const mod = await import('heic-convert');
+    const convert = (mod as any).default ?? (mod as any);
+
+    const output = await convert({
+      buffer,
+      format: 'JPEG',
+      quality: 0.8,
+    });
+
+    return { buffer: Buffer.from(output), converted: true };
+  } catch (error) {
+    console.warn('⚠️ HEIC conversion failed, returning original:', error);
+    return { buffer, converted: false };
+  }
+}
+
+// --- Function to select best photo from multiple images ---
+async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeType: string }>): Promise<any> {
+  if (!vertexAI) {
+    return {
+      verdict: 'Error ⚠️',
+      suggestion: 'Vertex AI not configured.',
+      raw: 'Vertex AI not initialized',
+    };
+  }
+
+  try {
+    const model = vertexAI.getGenerativeModel({ model: modelName });
+    
+    const prompt = `
+    I am providing you with multiple images. Your task is to analyze all of them and select the single best one to be the first slide of a social media post (like Instagram).
+    
+    Consider:
+    - Facial expressions (looking for genuine, flattering, or confident expressions)
+    - Body language (posture, vibe)
+    - Lighting and composition
+    - Overall aesthetic appeal
+
+    Return a JSON object with:
+    - "selectedIndex": The 0-based index of the best image from the provided list.
+    - "reason": A short, fun, and encouraging explanation of why this photo is the winner.
+    - "verdict": "WINNER 🏆"
+    `;
+
+    const parts: any[] = [{ text: prompt }];
+
+    // Add all images to the prompt parts - use raw base64 without data: URI prefix
+    imagesData.forEach((img, index) => {
+      parts.push({
+        inlineData: {
+          mimeType: img.mimeType,
+          data: img.base64,
+        },
+      });
+      console.log(`📸 Added image ${index + 1}/${imagesData.length} to prompt (${img.mimeType})`);
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 512,
+      },
+    });
+
+    const text = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const responseText = text.trim();
+    console.log('✅ Vertex selection response:', responseText);
+
+    let parsed: any = null;
+    try {
+      const noFences = responseText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      const start = noFences.indexOf('{');
+      const end = noFences.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        const jsonSlice = noFences.slice(start, end + 1);
+        parsed = JSON.parse(jsonSlice);
+      }
+    } catch {
+      parsed = null;
+    }
+
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      selectedIndex: 0,
+      reason: "I couldn't decide, so I picked the first one! (AI parsing error)",
+      verdict: "WINNER 🏆",
+      raw: responseText
+    };
+
+  } catch (error) {
+    console.error('❌ Error calling Vertex AI for selection:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      error: true,
+      message: 'Could not analyze images.',
+      raw: msg,
+    };
+  }
+}
+
 // Middleware to verify Firebase token
 interface AuthenticatedRequest extends Request {
   user?: { uid: string };
@@ -823,6 +1010,7 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
   const feedback = await getVertexFeedback(imageBase64, category);
   res.status(200).json(feedback);
 });
+
 
 // --- Stripe Checkout Session ---
 app.post('/create-checkout-session', async (req: Request, res: Response) => {
