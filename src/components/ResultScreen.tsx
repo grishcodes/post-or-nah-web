@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface ResultScreenProps {
@@ -47,16 +47,36 @@ const generateAIResponse = (vibes: string[]) => {
 
 export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, onTryAnother }: ResultScreenProps) {
   const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   // Prefer server-provided verdict/suggestion; fallback to mock if absent
   const aiResponse = verdictProp
     ? { verdict: verdictProp, suggestions: suggestionProp ? [suggestionProp] : [] }
     : generateAIResponse(vibes);
   const isPositive = aiResponse.verdict.includes('✅');
 
+  const handleDownload = () => {
+    if (!photoUrl) return;
+
+    // Create a link element and trigger download
+    const link = document.createElement('a');
+    link.href = photoUrl;
+
+    // Use the original file name if available, otherwise generate one
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = photoFile?.name || `post-or-nah-winner-${timestamp}.jpg`;
+
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     if (typeof photo === 'string') {
       setPhotoUrl(photo);
+      setPhotoFile(null);
     } else {
+      setPhotoFile(photo);
       const url = URL.createObjectURL(photo);
       setPhotoUrl(url);
       
@@ -145,9 +165,9 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           </div>
         </motion.div>
 
-        {/* Try Another Button */}
+        {/* Try Another Button & Download Button */}
         <motion.div
-          className="pt-6"
+          className="pt-6 flex gap-3 flex-wrap justify-center"
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.8 }}
@@ -158,6 +178,15 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           >
             <RefreshCw className="w-5 h-5" />
             <span>Try Another Photo</span>
+          </Button>
+          
+          <Button
+            onClick={handleDownload}
+            disabled={!photoUrl}
+            className="bg-green-500 text-white hover:bg-green-600 disabled:bg-gray-400 h-auto min-h-12 px-6 py-3 rounded-full text-base md:text-lg font-semibold flex items-center gap-2 whitespace-nowrap"
+          >
+            <Download className="w-5 h-5" />
+            <span>Download Winner</span>
           </Button>
         </motion.div>
       </div>

@@ -46,6 +46,8 @@
     "firebase-admin": "^13.6.0",
     "form-data": "^4.0.4",
     "groq-sdk": "^0.34.0",
+    "heic-convert": "^2.1.0",
+    "heic2any": "^0.0.4",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.545.0",
     "motion": "*",
