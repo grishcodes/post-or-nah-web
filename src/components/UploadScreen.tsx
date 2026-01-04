@@ -179,7 +179,13 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     const selectBestUrl = isLocalhost
       ? 'http://localhost:3001/api/select-best'
       : import.meta.env.PROD
-        ? '/api/select-best'
+        ? (() => {
+            // IMPORTANT: This endpoint can take >20s (multi-image AI). Vercel rewrites can time out.
+            // Call Cloud Run directly in production; keep env override for flexibility.
+            const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
+            const apiBase = (envApiBase ? envApiBase.replace(/\/$/, '') : 'https://post-or-nah-web-gpg2j4io3q-ew.a.run.app');
+            return `${apiBase}/api/select-best`;
+          })()
         : (() => {
             const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
             const apiBase = envApiBase ? envApiBase.replace(/\/$/, '') : '';
