@@ -176,9 +176,10 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     setError(null);
 
     const envApiBase = import.meta.env.VITE_API_URL;
-    const apiBase = envApiBase 
-      ? envApiBase.replace(/\/$/, '') 
+    const apiBase = envApiBase
+      ? envApiBase.replace(/\/$/, '')
       : (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
+    const selectBestUrl = apiBase ? `${apiBase}/api/select-best` : '/api/select-best';
 
     try {
       console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
@@ -192,9 +193,9 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         formData.append('images', file, file.name);
       }
       
-      console.log(`📤 Sending request to ${apiBase}/api/select-best with ${batchFiles.length} images`);
+      console.log(`📤 Sending request to ${selectBestUrl} with ${batchFiles.length} images`);
       
-      const response = await fetch(`${apiBase}/api/select-best`, {
+      const response = await fetch(selectBestUrl, {
         method: 'POST',
         body: formData,
         // Don't set Content-Type header - browser will set it with boundary
@@ -234,7 +235,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     } catch (err: any) {
       console.error('❌ Batch submit error:', err);
       const errorMessage = err.message || 'Unknown error';
-      setError(`Error: ${errorMessage}. \nTarget: ${apiBase}/api/select-best`);
+      setError(`Error: ${errorMessage}. \nTarget: ${selectBestUrl}`);
     } finally {
       setLoading(false);
     }
@@ -257,11 +258,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       try {
         // Determine API URL
         const envApiBase = import.meta.env.VITE_API_URL;
-        
-        // Try configured env var first, then fallback to localhost:3001
+
+        // Prefer same-origin in production (Vercel rewrite proxies /api/* to backend)
         const candidates = [
+          '/api/feedback',
           envApiBase ? `${envApiBase.replace(/\/$/, '')}/api/feedback` : undefined,
-          'http://localhost:3001/api/feedback'
+          'http://localhost:3001/api/feedback',
         ].filter(Boolean) as string[];
 
         let lastErr: any = null;
