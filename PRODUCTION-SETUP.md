@@ -4,7 +4,7 @@
 Your `.env` file has been updated with:
 
 ```env
-VITE_BACKEND_URL=https://post-or-nah-web-251339844808.europe-west1.run.app
+VITE_BACKEND_URL=https://post-or-nah-web-gpg2j4io3q-ew.a.run.app
 FRONTEND_URL=https://www.postornah.com
 CORS_ORIGIN=https://www.postornah.com
 ```
@@ -26,11 +26,11 @@ You need to complete this for the Instagram OAuth fix to work:
 4. Create OAuth 2.0 credential:
    - Type: **Web application**
    - Name: "Post or Nah - Production"
-   - Add authorized origins:
-     - `https://www.postornah.com`
-     - `https://post-or-nah-web-251339844808.europe-west1.run.app`
+    - Add authorized origins:
+       - `https://www.postornah.com`
+       - `https://post-or-nah-web-gpg2j4io3q-ew.a.run.app`
    - Add authorized redirect URIs:
-     - `https://post-or-nah-web-251339844808.europe-west1.run.app/api/oauth/callback`
+   - `https://post-or-nah-web-gpg2j4io3q-ew.a.run.app/api/oauth/callback`
 
 5. Download credentials (JSON) and copy:
    - `client_id` → `GOOGLE_OAUTH_CLIENT_ID` in `.env`
@@ -51,9 +51,9 @@ After updating `.env`:
 
 ```bash
 gcloud run deploy post-or-nah-web \
-  --source . \
-  --region europe-west1 \
-  --env-vars-file .env.cloud
+   --source . \
+   --region europe-west1 \
+   --env-vars-file .env.cloud
 ```
 
 Or via the Cloud Console UI.
@@ -76,8 +76,8 @@ Or via the Cloud Console UI.
 ## 🔗 Your Production URLs
 
 - **Frontend**: https://www.postornah.com
-- **Backend API**: https://post-or-nah-web-251339844808.europe-west1.run.app
-- **OAuth Callback**: https://post-or-nah-web-251339844808.europe-west1.run.app/api/oauth/callback
+- **Backend API**: https://post-or-nah-web-gpg2j4io3q-ew.a.run.app
+- **OAuth Callback**: https://post-or-nah-web-gpg2j4io3q-ew.a.run.app/api/oauth/callback
 
 ## 📝 What Changed
 

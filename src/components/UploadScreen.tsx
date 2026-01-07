@@ -176,21 +176,27 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     setError(null);
 
     const isLocalhost = window.location.hostname === 'localhost';
-    const selectBestUrl = isLocalhost
-      ? 'http://localhost:3001/api/select-best'
-      : import.meta.env.PROD
-        ? (() => {
-            // IMPORTANT: This endpoint can take >20s (multi-image AI). Vercel rewrites can time out.
-            // Call Cloud Run directly in production; keep env override for flexibility.
-            const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
-            const apiBase = (envApiBase ? envApiBase.replace(/\/$/, '') : 'https://post-or-nah-web-gpg2j4io3q-ew.a.run.app');
-            return `${apiBase}/api/select-best`;
-          })()
-        : (() => {
-            const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
-            const apiBase = envApiBase ? envApiBase.replace(/\/$/, '') : '';
-            return apiBase ? `${apiBase}/api/select-best` : '/api/select-best';
-          })();
+    const selectBestCandidates: string[] = (
+      isLocalhost
+        ? ['http://localhost:3001/api/select-best']
+        : import.meta.env.PROD
+          ? (() => {
+              const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
+              const normalizedEnv = envApiBase ? envApiBase.replace(/\/$/, '') : undefined;
+              const defaults = [
+                'https://post-or-nah-web-gpg2j4io3q-ew.a.run.app',
+              ];
+              const bases = [normalizedEnv, ...defaults].filter(Boolean) as string[];
+              return bases.map(b => `${b}/api/select-best`);
+            })()
+          : (() => {
+              const envApiBase = import.meta.env.VITE_API_URL as string | undefined;
+              const normalizedEnv = envApiBase ? envApiBase.replace(/\/$/, '') : '';
+              const list = ['/api/select-best'];
+              if (normalizedEnv) list.unshift(`${normalizedEnv}/api/select-best`);
+              return list;
+            })()
+    );
 
     try {
       console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
@@ -204,23 +210,39 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         formData.append('images', file, file.name);
       }
       
-      console.log(`📤 Sending request to ${selectBestUrl} with ${batchFiles.length} images`);
-      
-      const response = await fetch(selectBestUrl, {
-        method: 'POST',
-        body: formData,
-        // Don't set Content-Type header - browser will set it with boundary
-      });
-
-      console.log(`📨 Response status: ${response.status} ${response.statusText}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Server error: ${errorText}`);
-        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      let data: any = null;
+      let lastErr: any = null;
+      for (const url of selectBestCandidates) {
+        try {
+          console.log(`📤 Sending request to ${url} with ${batchFiles.length} images`);
+          const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+          });
+          console.log(`📨 Response status: ${response.status} ${response.statusText}`);
+          if (!response.ok) {
+            let bodyText = '';
+            try { bodyText = await response.text(); } catch { bodyText = ''; }
+            const statusMsg = `HTTP ${response.status} at ${url}: ${bodyText || response.statusText}`;
+            console.warn(statusMsg);
+            lastErr = new Error(statusMsg);
+            continue;
+          }
+          data = await response.json();
+          // Stop at first success
+          break;
+        } catch (e: any) {
+          console.warn(`Network error calling ${url}:`, e?.message || e);
+          lastErr = e;
+          continue;
+        }
       }
 
-      const data = await response.json();
+      if (!data) {
+        throw lastErr || new Error(`All endpoints failed: ${selectBestCandidates.join(', ')}`);
+      }
+      
+      console.log('✅ Received response:', data);
       console.log('✅ Received response:', data);
       
       if (data.error) {
@@ -246,7 +268,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     } catch (err: any) {
       console.error('❌ Batch submit error:', err);
       const errorMessage = err.message || 'Unknown error';
-      setError(`Error: ${errorMessage}. \nTarget: ${selectBestUrl}`);
+      setError(`Error: ${errorMessage}. \nTargets tried: ${selectBestCandidates.join(', ')}`);
     } finally {
       setLoading(false);
     }

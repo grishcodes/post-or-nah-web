@@ -30,8 +30,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function addCreditsToUser() {
-  const userId = 'IzmJ3ob3iceJzcvHawYfM4nyjhB2';
-  const creditsToAdd = 100;
+  const userId = '1ny9jVUl0MgFEe1RpmWESZPZHcv1';
+  const creditsToAdd = 20;
 
   try {
     const userRef = db.collection('users').doc(userId);
