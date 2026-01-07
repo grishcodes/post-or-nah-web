@@ -207,3 +207,58 @@ Private project - All rights reserved
 ## 👨‍💻 Development
 
 Built with ❤️ using React, TypeScript, and Google Gemini AI
+
+## 🚀 Deployment (Frontend + Backend)
+
+### Backend: Google Cloud Run
+
+Deploy the Express server using the included Dockerfile.
+
+1. Install Google Cloud SDK and login:
+
+```
+gcloud auth login
+gcloud config set project pon-app-final
+```
+
+2. Deploy to Cloud Run (uses `.env.cloud`):
+
+```
+gcloud run deploy post-or-nah-web \
+    --source . \
+    --region europe-west1 \
+    --allow-unauthenticated \
+    --env-vars-file .env.cloud \
+    --timeout 180s \
+    --cpu 1 \
+    --memory 1Gi
+```
+
+Notes:
+- The service listens on port `3001` (Cloud Run maps it automatically).
+- `GOOGLE_APPLICATION_CREDENTIALS` points to `/app/gcloud-credentials.json` inside the container; alternatively use a service account with Vertex AI permissions.
+
+### Frontend: Vercel
+
+The app is a static build served from `build/` and uses `vercel.json` to proxy `/api/*` to Cloud Run.
+
+1. Install Vercel CLI and login:
+
+```
+npm i -g vercel
+vercel login
+```
+
+2. Set production env vars in the Vercel project:
+- `VITE_API_URL=https://post-or-nah-web-gpg2j4io3q-ew.a.run.app`
+- `VITE_BACKEND_URL=https://post-or-nah-web-gpg2j4io3q-ew.a.run.app`
+
+3. Deploy:
+
+```
+vercel --prod
+```
+
+### Troubleshooting
+- If the frontend shows “Failed to fetch”, verify the Vercel env matches the Cloud Run hostname and that `vercel.json` rewrites `/api/*` correctly.
+- The `Find Best Photo` flow tries multiple endpoints and prints all targets in the error message.
