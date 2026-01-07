@@ -710,8 +710,13 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
   }
 
   try {
-    const model = vertexAI.getGenerativeModel({ model: modelName });
-    
+    const modelCandidates = Array.from(new Set([
+      modelName,
+      'gemini-1.5-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-pro',
+    ])).filter(Boolean);
+
     const prompt = `
     I am providing you with multiple images. Your task is to analyze all of them and select the single best one to be the first slide of a social media post (like Instagram).
     
@@ -740,15 +745,32 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
       console.log(`📸 Added image ${index + 1}/${imagesData.length} to prompt (${img.mimeType})`);
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 512,
-      },
-    });
+    let generation: any = null;
+    let lastErr: any = null;
+    for (const m of modelCandidates) {
+      try {
+        console.log(`🎯 Trying model: ${m}`);
+        const model = vertexAI.getGenerativeModel({ model: m });
+        generation = await model.generateContent({
+          contents: [{ role: 'user', parts }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 512,
+          },
+        });
+        console.log(`✅ Model succeeded: ${m}`);
+        break; // success
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`⚠️  Model failed: ${m} → ${msg}`);
+        lastErr = e;
+        continue;
+      }
+    }
 
-    const text = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!generation) throw lastErr || new Error('All models failed');
+
+    const text = generation.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const responseText = text.trim();
     console.log('✅ Vertex selection response:', responseText);
 
