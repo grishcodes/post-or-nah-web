@@ -26,7 +26,6 @@ if (!admin.apps.length) {
     console.log('⚠️ gcloud-credentials.json not found, using applicationDefault()');
     admin.initializeApp({
       credential: admin.credential.applicationDefault(),
-      projectId: process.env.GCLOUD_PROJECT
     });
     console.log('✅ Firebase Admin initialized with default credentials');
   }

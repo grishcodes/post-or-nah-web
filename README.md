@@ -193,6 +193,11 @@ post-or-nah-web/
 - `.env` file exists with all required variables
 - Port 3001 is not already in use
 
+### HEIC uploads (iPhone photos)
+- The app supports HEIC batches by attempting a browser-side conversion to JPEG.
+- If conversion fails (browser limitations), the original HEIC is uploaded and the backend attempts conversion.
+- If “Pick Best Photo” fails in production, try exporting the images as JPG/PNG or reduce the number/size of images.
+
 ## 🔐 Security Notes
 
 - **Never commit** `.env` or `gcloud-credentials.json` to version control

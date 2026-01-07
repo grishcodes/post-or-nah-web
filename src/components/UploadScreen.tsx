@@ -1,4 +1,6 @@
 import { motion } from 'motion/react';
+import imageCompression from 'browser-image-compression';
+import heic2any from 'heic2any';
 import { useState, useRef, useEffect } from 'react';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
 import newLogo from '../assets/1.png'; 
@@ -206,8 +208,65 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       
       for (let i = 0; i < batchFiles.length; i++) {
         const file = batchFiles[i];
-        console.log(`📄 Processing file ${i + 1}: ${file.name} (${file.type})`);
-        formData.append('images', file, file.name);
+        console.log(`📄 Processing file ${i + 1}: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
+
+        let toAppend: File = file;
+        let isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
+        let heicConvertedToJpeg = false;
+
+        // Convert HEIC/HEIF to JPEG in the browser when possible (Vertex typically doesn't accept HEIC).
+        // If conversion fails (browser/memory limits), fall back to uploading the original and let the
+        // backend attempt conversion.
+        if (isHeic) {
+          try {
+            const converted = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.82,
+            });
+
+            const blob = Array.isArray(converted) ? converted[0] : converted;
+            const outName = file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+            toAppend = new File([blob as BlobPart], outName, { type: 'image/jpeg' });
+            heicConvertedToJpeg = true;
+            isHeic = false;
+            console.log(`🧾 HEIC→JPEG: ${file.name} → ${outName} (${Math.round((toAppend.size)/1024)}KB)`);
+          } catch (e: any) {
+            console.warn('⚠️ HEIC conversion failed in browser; sending original HEIC to backend:', e);
+            setRawResponse(`HEIC conversion failed in browser: ${e?.message || String(e)}`);
+            toAppend = file;
+          }
+        }
+
+        // Compress large images to stay under Cloud Run's request size limits (~32MB total)
+        if (!isHeic) {
+          try {
+            const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.8 } as const;
+            if (file.size > 2_500_000) {
+              const compressed = await imageCompression(file, opts);
+              console.log(`🔧 Compressed ${file.name}: ${Math.round(file.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
+              toAppend = compressed as File;
+            }
+          } catch (e) {
+            console.warn(`Compression failed for ${file.name}, sending original.`, e);
+          }
+        }
+
+        // If HEIC was converted, compress the JPEG if it's still large
+        if (heicConvertedToJpeg) {
+          try {
+            const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.82 } as const;
+            if (toAppend.size > 2_500_000) {
+              const compressed = await imageCompression(toAppend, opts);
+              console.log(`🔧 Compressed (post-convert) ${toAppend.name}: ${Math.round(toAppend.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
+              toAppend = compressed as File;
+            }
+          } catch (e) {
+            console.warn(`Compression failed for ${toAppend.name}, sending converted JPEG.`, e);
+          }
+        }
+
+        formData.append('images', toAppend, toAppend.name);
       }
       
       let data: any = null;
@@ -246,6 +305,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       console.log('✅ Received response:', data);
       
       if (data.error) {
+        setRawResponse(data.raw || null);
         setError(data.message || 'Analysis failed');
       } else {
         const winnerIndex = data.selectedIndex || 0;
