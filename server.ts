@@ -298,7 +298,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // --- Google Vertex AI Configuration ---
 const project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
 const location = process.env.GCLOUD_LOCATION || process.env.GOOGLE_CLOUD_REGION || process.env.GCLOUD_REGION || 'us-central1';
-const modelName = process.env.GCLOUD_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash';
+const modelName = process.env.GCLOUD_MODEL || process.env.VERTEX_MODEL || 'gemini-2.0-flash';
 
 let vertexAI: VertexAI | null = null;
 
@@ -705,6 +705,10 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
 
     const modelCandidates = Array.from(new Set([
       modelName,
+      // Prefer stable Vertex publisher models first
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-001',
+      // Older aliases/variants (may or may not exist depending on project access)
       'gemini-2.0-flash-exp',
       'gemini-1.5-flash',
       'gemini-1.5-pro',
@@ -807,7 +811,7 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
     } else if (msgLower.includes('503') || msgLower.includes('unavailable') || msgLower.includes('deadline') || msgLower.includes('timeout')) {
       suggestion = 'Vertex AI temporarily unavailable or timed out. Please retry; backend now auto-retries transient errors.';
     } else if (msgLower.includes('not found') || msgLower.includes('404')) {
-      suggestion = 'Model or region not found. Verify GCLOUD_LOCATION and GCLOUD_MODEL; try a supported model like gemini-1.5-flash in us-central1.';
+      suggestion = 'Model or region not found. Verify GCLOUD_LOCATION and GCLOUD_MODEL; for Vertex AI try gemini-2.0-flash in us-central1.';
     }
 
     return {
@@ -850,8 +854,10 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
   try {
     const modelCandidates = Array.from(new Set([
       modelName,
-      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-001',
       'gemini-2.0-flash-exp',
+      'gemini-1.5-flash',
       'gemini-1.5-pro',
     ])).filter(Boolean);
 
