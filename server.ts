@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import Stripe from 'stripe';
 import { VertexAI } from '@google-cloud/vertexai';
 import { getUserData, incrementChecksUsed, updatePremiumStatus, addCreditsToUser, updateUserSubscription, auth as adminAuth } from './firebaseAdmin.js';
@@ -295,30 +296,127 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // --- Google Vertex AI Configuration ---
-const project = process.env.GCLOUD_PROJECT;
-const location = process.env.GCLOUD_LOCATION || 'us-central1';
-const modelName = process.env.GCLOUD_MODEL || 'gemini-2.5-flash';
+const project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+const location = process.env.GCLOUD_LOCATION || process.env.GOOGLE_CLOUD_REGION || process.env.GCLOUD_REGION || 'us-central1';
+const modelName = process.env.GCLOUD_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash';
 
 let vertexAI: VertexAI | null = null;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientVertexError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('429') ||
+    m.includes('resource_exhausted') ||
+    m.includes('rate') && m.includes('limit') ||
+    m.includes('503') ||
+    m.includes('unavailable') ||
+    m.includes('deadline') && m.includes('exceeded') ||
+    m.includes('timeout') ||
+    m.includes('timed out') ||
+    m.includes('socket hang up') ||
+    m.includes('econnreset')
+  );
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+async function generateContentWithRetry(
+  model: ReturnType<VertexAI['getGenerativeModel']>,
+  request: any,
+  options?: { maxAttempts?: number; baseDelayMs?: number }
+): Promise<any> {
+  const maxAttempts = options?.maxAttempts ?? 3;
+  const baseDelayMs = options?.baseDelayMs ?? 350;
+
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await model.generateContent(request);
+    } catch (e) {
+      lastErr = e;
+      const msg = getErrorMessage(e);
+      if (!isTransientVertexError(msg) || attempt === maxAttempts) throw e;
+
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      console.warn(`⏳ Transient Vertex error (attempt ${attempt}/${maxAttempts}): ${msg} — retrying in ${delay}ms`);
+      await sleep(delay);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(getErrorMessage(lastErr));
+}
+
+function ensureGoogleApplicationCredentials(): void {
+  const rawCredentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.GCLOUD_CREDENTIALS_JSON;
+  const credentialsBase64 = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64 || process.env.GCLOUD_CREDENTIALS_BASE64;
+
+  if (rawCredentialsPath) {
+    const absolutePath = path.isAbsolute(rawCredentialsPath)
+      ? rawCredentialsPath
+      : path.resolve(process.cwd(), rawCredentialsPath);
+
+    if (fs.existsSync(absolutePath)) {
+      if (process.env.GOOGLE_APPLICATION_CREDENTIALS !== absolutePath) {
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = absolutePath;
+        console.log(`✅ Setting GOOGLE_APPLICATION_CREDENTIALS to: ${absolutePath}`);
+      }
+      return;
+    }
+
+    console.warn(`⚠️  GOOGLE_APPLICATION_CREDENTIALS points to missing file: ${absolutePath}`);
+  }
+
+  if (!credentialsJson && !credentialsBase64) return;
+
+  let jsonText: string | null = null;
+  if (credentialsJson) {
+    jsonText = credentialsJson.trim();
+  } else if (credentialsBase64) {
+    try {
+      jsonText = Buffer.from(credentialsBase64, 'base64').toString('utf8').trim();
+    } catch {
+      console.warn('⚠️  Failed to decode GOOGLE_APPLICATION_CREDENTIALS_BASE64');
+      jsonText = null;
+    }
+  }
+
+  if (!jsonText) return;
+
+  try {
+    JSON.parse(jsonText);
+  } catch {
+    console.warn('⚠️  GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON');
+    return;
+  }
+
+  const tmpPath = path.join(os.tmpdir(), 'google-application-credentials.json');
+  try {
+    fs.writeFileSync(tmpPath, jsonText, { encoding: 'utf8' });
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+    console.log(`✅ Wrote GOOGLE_APPLICATION_CREDENTIALS to temp file: ${tmpPath}`);
+  } catch (err) {
+    console.warn('⚠️  Failed to write temp credentials file:', err);
+  }
+}
 
 if (!project) {
   console.warn('⚠️  WARNING: GCLOUD_PROJECT not set in env vars');
   console.warn('⚠️  Skipping Vertex AI initialization - required for image analysis');
 } else {
   try {
-    // Ensure GOOGLE_APPLICATION_CREDENTIALS is set for local development
-    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    if (credentialsPath && !credentialsPath.startsWith('/')) {
-      // If it's a relative path, resolve it to absolute path
-      const absolutePath = path.resolve(process.cwd(), credentialsPath);
-      if (fs.existsSync(absolutePath)) {
-        process.env.GOOGLE_APPLICATION_CREDENTIALS = absolutePath;
-        console.log(`✅ Setting GOOGLE_APPLICATION_CREDENTIALS to: ${absolutePath}`);
-      } else {
-        console.warn(`⚠️  Credentials file not found at: ${absolutePath}`);
-        console.warn(`📁 Current working directory: ${process.cwd()}`);
-      }
-    }
+    // Support local dev (path) and hosted environments (env JSON/base64)
+    ensureGoogleApplicationCredentials();
 
     // Initialize Vertex AI
     vertexAI = new VertexAI({ project, location });
@@ -605,27 +703,50 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
     const key = normalizeVibeKey(category);
     const selectedPrompt = vibePromptsFinal[key];
 
-    const model = vertexAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: selectedPrompt },
+    const modelCandidates = Array.from(new Set([
+      modelName,
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+    ])).filter(Boolean);
+
+    let result: any = null;
+    let lastErr: any = null;
+    for (const m of modelCandidates) {
+      try {
+        console.log(`🎯 Trying model: ${m}`);
+        const model = vertexAI.getGenerativeModel({ model: m });
+        result = await generateContentWithRetry(model, {
+          contents: [
             {
-              inlineData: {
-                  mimeType: mimeType,
-                data: base64Data,
-              },
+              role: 'user',
+              parts: [
+                { text: selectedPrompt },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 256,
-      },
-    });
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 256,
+          },
+        });
+        console.log(`✅ Model succeeded: ${m}`);
+        break;
+      } catch (e) {
+        const msg = getErrorMessage(e);
+        console.warn(`⚠️  Model failed: ${m} → ${msg}`);
+        lastErr = e;
+        continue;
+      }
+    }
+
+    if (!result) throw lastErr || new Error('All models failed');
 
     const text = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const responseText = text.trim();
@@ -671,10 +792,27 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
     return { verdict, suggestion, raw: result.response };
   } catch (error) {
     console.error('❌ Error calling Vertex AI:', error);
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = getErrorMessage(error);
+
+    let suggestion = 'Could not analyze image. Verify Vertex AI API enabled, region/model, and service account roles.';
+    const msgLower = msg.toLowerCase();
+    if (msgLower.includes('could not load the default credentials') || msgLower.includes('default credentials')) {
+      suggestion = 'Google auth not configured. Set GOOGLE_APPLICATION_CREDENTIALS, or provide GOOGLE_APPLICATION_CREDENTIALS_JSON / _BASE64 in the backend env.';
+    } else if (msgLower.includes('permission_denied') || msgLower.includes('403')) {
+      suggestion = 'Permission denied calling Vertex AI. Ensure the runtime service account has the Vertex AI User role (and access to the project).';
+    } else if (msgLower.includes('aiplatform') && msgLower.includes('has not been used')) {
+      suggestion = 'Vertex AI API appears disabled for this project. Enable the Vertex AI API (aiplatform.googleapis.com) and retry.';
+    } else if (msgLower.includes('429') || msgLower.includes('resource_exhausted') || (msgLower.includes('rate') && msgLower.includes('limit'))) {
+      suggestion = 'Vertex AI rate limit/quota hit. Wait a moment and retry; consider lowering traffic or requesting higher quota.';
+    } else if (msgLower.includes('503') || msgLower.includes('unavailable') || msgLower.includes('deadline') || msgLower.includes('timeout')) {
+      suggestion = 'Vertex AI temporarily unavailable or timed out. Please retry; backend now auto-retries transient errors.';
+    } else if (msgLower.includes('not found') || msgLower.includes('404')) {
+      suggestion = 'Model or region not found. Verify GCLOUD_LOCATION and GCLOUD_MODEL; try a supported model like gemini-1.5-flash in us-central1.';
+    }
+
     return {
       verdict: 'Error ⚠️',
-      suggestion: 'Could not analyze image. Verify Vertex AI API enabled, region/model, and service account roles.',
+      suggestion,
       raw: msg,
     };
   }
@@ -751,7 +889,7 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
       try {
         console.log(`🎯 Trying model: ${m}`);
         const model = vertexAI.getGenerativeModel({ model: m });
-        generation = await model.generateContent({
+        generation = await generateContentWithRetry(model, {
           contents: [{ role: 'user', parts }],
           generationConfig: {
             temperature: 0.2,
@@ -761,7 +899,7 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
         console.log(`✅ Model succeeded: ${m}`);
         break; // success
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = getErrorMessage(e);
         console.warn(`⚠️  Model failed: ${m} → ${msg}`);
         lastErr = e;
         continue;
@@ -920,11 +1058,27 @@ setInterval(() => {
 
 // Health check endpoint - helps detect connectivity issues
 app.get('/api/health', (req: Request, res: Response) => {
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const hasInlineCredentials = Boolean(
+    (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || process.env.GCLOUD_CREDENTIALS_JSON || '').trim() ||
+    (process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64 || process.env.GCLOUD_CREDENTIALS_BASE64 || '').trim()
+  );
+
   const healthCheck = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     message: 'Backend is running',
     vertexAI: vertexAI ? 'configured' : 'not configured',
+    vertexConfig: {
+      project: project || null,
+      location,
+      model: modelName,
+      credentials: {
+        hasCredentialsPath: Boolean(credentialsPath),
+        credentialsPathExists: credentialsPath ? fs.existsSync(path.isAbsolute(credentialsPath) ? credentialsPath : path.resolve(process.cwd(), credentialsPath)) : false,
+        hasInlineCredentials,
+      },
+    },
     environment: process.env.NODE_ENV || 'development',
   };
   res.status(200).json(healthCheck);
