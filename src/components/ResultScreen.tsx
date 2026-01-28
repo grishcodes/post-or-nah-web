@@ -9,8 +9,35 @@ interface ResultScreenProps {
   vibes: string[];
   verdict?: string;
   suggestion?: string;
+  score?: number;
   onTryAnother: () => void;
 }
+
+// Helper to get score color based on value
+const getScoreColor = (score: number): string => {
+  if (score >= 8) return 'text-green-400';
+  if (score >= 6) return 'text-yellow-400';
+  if (score >= 4) return 'text-orange-400';
+  return 'text-red-400';
+};
+
+// Helper to get score emoji
+const getScoreEmoji = (score: number): string => {
+  if (score >= 9) return '🔥';
+  if (score >= 7) return '✨';
+  if (score >= 5) return '🤷';
+  if (score >= 3) return '😬';
+  return '💀';
+};
+
+// Helper to get score label
+const getScoreLabel = (score: number): string => {
+  if (score >= 9) return 'no cap fire';
+  if (score >= 7) return 'lowkey slay';
+  if (score >= 5) return 'it\'s giving mid';
+  if (score >= 3) return 'not it twin';
+  return 'delete this rn';
+};
 
 // Mock AI responses based on vibes
 const generateAIResponse = (vibes: string[]) => {
@@ -45,7 +72,7 @@ const generateAIResponse = (vibes: string[]) => {
     { verdict: 'Post ✅', suggestions: ['Looking good!', 'Great photo quality'] };
 };
 
-export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, onTryAnother }: ResultScreenProps) {
+export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, score: scoreProp, onTryAnother }: ResultScreenProps) {
   const [photoUrl, setPhotoUrl] = useState<string>('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   // Prefer server-provided verdict/suggestion; fallback to mock if absent
@@ -53,6 +80,9 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
     ? { verdict: verdictProp, suggestions: suggestionProp ? [suggestionProp] : [] }
     : generateAIResponse(vibes);
   const isPositive = aiResponse.verdict.includes('✅');
+  
+  // Use provided score or generate default based on verdict
+  const score = scoreProp ?? (isPositive ? 8 : 3);
 
   const handleDownload = () => {
     if (!photoUrl) return;
@@ -146,6 +176,44 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
+          {/* Postability Score */}
+          <motion.div
+            className="flex flex-col items-center gap-3"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
+          >
+            <div className="text-white/70 text-sm font-medium uppercase tracking-wider">
+              Postability Score
+            </div>
+            <div className="relative">
+              {/* Score Circle */}
+              <div className={`w-28 h-28 rounded-full border-4 ${score >= 7 ? 'border-green-400' : score >= 4 ? 'border-yellow-400' : 'border-red-400'} bg-white/10 backdrop-blur-sm flex items-center justify-center gap-0`}>
+                <motion.span
+                  className={`text-5xl font-bold ${getScoreColor(score)}`}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.7, type: "spring" }}
+                >
+                  {score}
+                </motion.span>
+                <span className="text-white/50 text-xl">/10</span>
+              </div>
+            </div>
+            {/* Emoji and Label together */}
+            <motion.div
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-white/20 to-white/10 backdrop-blur-md border border-white/20 shadow-lg"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}
+            >
+              <span className="text-2xl">{getScoreEmoji(score)}</span>
+              <span className={`text-base font-bold tracking-wide ${getScoreColor(score)}`}>
+                {getScoreLabel(score)}
+              </span>
+            </motion.div>
+          </motion.div>
+
           <div className={`text-5xl ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
             {aiResponse.verdict}
           </div>

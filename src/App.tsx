@@ -17,6 +17,7 @@ interface PhotoData {
   vibes: string[];
   verdict?: string | null;
   suggestion?: string | null;
+  score?: number | null;
 }
 
 export default function App() {
@@ -70,14 +71,14 @@ export default function App() {
     setCurrentScreen('upload');
   };
 
-  const handlePhotoUpload = async (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => {
+  const handlePhotoUpload = async (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null, score?: number | null) => {
     // Check if user has reached free limit and isn't premium
     if (checksUsed >= 3 && !isPremium && creditsBalance === 0) {
       setCurrentScreen('subscription');
       return;
     }
 
-    setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null });
+    setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null, score: score ?? null });
     
     // Increment check count on backend
     await incrementCheck();
@@ -134,6 +135,7 @@ export default function App() {
               vibes={currentPhoto.vibes}
               verdict={currentPhoto.verdict ?? undefined}
               suggestion={currentPhoto.suggestion ?? undefined}
+              score={currentPhoto.score ?? undefined}
               onTryAnother={handleTryAnother}
             />
           </motion.div>
