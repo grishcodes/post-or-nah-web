@@ -14,7 +14,7 @@ import { SafariCompat } from '../lib/safariCompat';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
-  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null) => void;
+  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null, score?: number | null) => void;
   checksUsed: number;
   isPremium: boolean;
   creditsBalance?: number;
@@ -322,7 +322,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         setPreviewUrl(winnerPreviewDataUrl || winnerPreviewFallback);
         
         // Trigger the parent callback to show result screen
-        onPhotoUpload(winnerPreviewDataUrl || winnerFile, ['Best Photo Selection'], data.verdict, data.reason);
+        onPhotoUpload(winnerPreviewDataUrl || winnerFile, ['Best Photo Selection'], data.verdict, data.reason, null);
       }
 
     } catch (err: any) {
@@ -417,7 +417,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           }
         }
 
-        onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion);
+        onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion, json?.score ?? null);
       } catch (err: any) {
         console.error('Feedback request failed', err);
         const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
@@ -530,7 +530,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           {/* Hidden Cloudinary Upload Form */}
           <div className="hidden">
             <UploadForm onUpload={(url) => {
-              onPhotoUpload(url, selectedVibes);
+              onPhotoUpload(url, selectedVibes, null, null, null);
             }} />
           </div>
 
