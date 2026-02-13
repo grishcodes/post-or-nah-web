@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 import { SplashScreen } from './components/SplashScreen';
 import { UploadScreen } from './components/UploadScreen';
 import { ResultScreen } from './components/ResultScreen';
@@ -110,6 +111,7 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen overflow-x-hidden overflow-y-auto bg-gradient-to-b from-blue-300 to-blue-800">
+      <Analytics />
       <AnimatePresence mode="wait">
         {currentScreen === 'splash' && (
           <motion.div key="splash">
