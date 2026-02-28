@@ -57,10 +57,51 @@
       <script type="application/ld+json">
         {
           "@context": "https://schema.org",
-          "@type": "Organization",
+          "@type": "WebApplication",
+          "name": "Post or Nah",
+          "alternateName": "Post or Nah - AI Vibe Check",
+          "url": "https://www.postornah.com/",
+          "applicationCategory": "UtilitiesApplication",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "operatingSystem": "Any",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "description": "Get an honest, AI-powered vibe check on your photos before you post to Instagram, dating apps, and more.",
+          "logo": "https://www.postornah.com/favicon.png",
+          "screenshot": "https://www.postornah.com/og-image.png",
+          "featureList": [
+            "AI photo analysis",
+            "Instagram vibe check",
+            "Dating app photo rating",
+            "Instant feedback",
+            "Multiple photo comparison"
+          ],
+          "author": {
+            "@type": "Organization",
+            "name": "Post or Nah",
+            "url": "https://www.postornah.com/"
+          }
+        }
+      </script>
+
+      <!-- Website schema for better sitelinks -->
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
           "name": "Post or Nah",
           "url": "https://www.postornah.com/",
-          "logo": "https://www.postornah.com/favicon.png"
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://www.postornah.com/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
         }
       </script>
     </head>
