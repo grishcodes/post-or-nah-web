@@ -1,14 +1,11 @@
-import { motion } from 'motion/react';
+﻿import { motion } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import heic2any from 'heic2any';
 import { useState, useRef, useEffect } from 'react';
-import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
 import newLogo from '../assets/1.png'; 
 import newLogo2 from '../assets/2.png';
 import { useAuth } from '../context/AuthContext';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Upload, Camera } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SafariCompat } from '../lib/safariCompat';
 
@@ -201,14 +198,14 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     );
 
     try {
-      console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
+      console.log(`ðŸ”„ Starting batch analysis for ${batchFiles.length} images...`);
       
       // Create FormData to handle both binary and base64
       const formData = new FormData();
       
       for (let i = 0; i < batchFiles.length; i++) {
         const file = batchFiles[i];
-        console.log(`📄 Processing file ${i + 1}: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
+        console.log(`ðŸ“„ Processing file ${i + 1}: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
 
         let toAppend: File = file;
         let isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
@@ -230,9 +227,9 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             toAppend = new File([blob as BlobPart], outName, { type: 'image/jpeg' });
             heicConvertedToJpeg = true;
             isHeic = false;
-            console.log(`🧾 HEIC→JPEG: ${file.name} → ${outName} (${Math.round((toAppend.size)/1024)}KB)`);
+            console.log(`ðŸ§¾ HEICâ†’JPEG: ${file.name} â†’ ${outName} (${Math.round((toAppend.size)/1024)}KB)`);
           } catch (e: any) {
-            console.warn('⚠️ HEIC conversion failed in browser; sending original HEIC to backend:', e);
+            console.warn('âš ï¸ HEIC conversion failed in browser; sending original HEIC to backend:', e);
             setRawResponse(`HEIC conversion failed in browser: ${e?.message || String(e)}`);
             toAppend = file;
           }
@@ -244,7 +241,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.8 } as const;
             if (file.size > 2_500_000) {
               const compressed = await imageCompression(file, opts);
-              console.log(`🔧 Compressed ${file.name}: ${Math.round(file.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
+              console.log(`ðŸ”§ Compressed ${file.name}: ${Math.round(file.size/1024)}KB â†’ ${Math.round(compressed.size/1024)}KB`);
               toAppend = compressed as File;
             }
           } catch (e) {
@@ -258,7 +255,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.82 } as const;
             if (toAppend.size > 2_500_000) {
               const compressed = await imageCompression(toAppend, opts);
-              console.log(`🔧 Compressed (post-convert) ${toAppend.name}: ${Math.round(toAppend.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
+              console.log(`ðŸ”§ Compressed (post-convert) ${toAppend.name}: ${Math.round(toAppend.size/1024)}KB â†’ ${Math.round(compressed.size/1024)}KB`);
               toAppend = compressed as File;
             }
           } catch (e) {
@@ -273,12 +270,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       let lastErr: any = null;
       for (const url of selectBestCandidates) {
         try {
-          console.log(`📤 Sending request to ${url} with ${batchFiles.length} images`);
+          console.log(`ðŸ“¤ Sending request to ${url} with ${batchFiles.length} images`);
           const response = await fetch(url, {
             method: 'POST',
             body: formData,
           });
-          console.log(`📨 Response status: ${response.status} ${response.statusText}`);
+          console.log(`ðŸ“¨ Response status: ${response.status} ${response.statusText}`);
           if (!response.ok) {
             let bodyText = '';
             try { bodyText = await response.text(); } catch { bodyText = ''; }
@@ -301,15 +298,15 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         throw lastErr || new Error(`All endpoints failed: ${selectBestCandidates.join(', ')}`);
       }
       
-      console.log('✅ Received response:', data);
-      console.log('✅ Received response:', data);
+      console.log('âœ… Received response:', data);
+      console.log('âœ… Received response:', data);
       
       if (data.error) {
         setRawResponse(data.raw || null);
         setError(data.message || 'Analysis failed');
       } else {
         const winnerIndex = data.selectedIndex || 0;
-        setVerdict(data.verdict || 'WINNER 🏆');
+        setVerdict(data.verdict || 'WINNER ðŸ†');
         setSuggestion(data.reason || 'This is the best one!');
 
         // Prefer backend-provided preview (fixes HEIC winners not rendering in browser)
@@ -323,10 +320,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         
         // Trigger the parent callback to show result screen
         onPhotoUpload(winnerPreviewDataUrl || winnerFile, ['Best Photo Selection'], data.verdict, data.reason, null);
+        // Don't setLoading(false) on success — keep overlay until component unmounts
+        return;
       }
 
     } catch (err: any) {
-      console.error('❌ Batch submit error:', err);
+      console.error('âŒ Batch submit error:', err);
       const errorMessage = err.message || 'Unknown error';
       setError(`Error: ${errorMessage}. \nTargets tried: ${selectBestCandidates.join(', ')}`);
     } finally {
@@ -412,12 +411,14 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         if (!json?.verdict && json?.raw) {
           const maybe = (json.raw?.generated_text || json.raw?.text || '') as string;
           if (maybe) {
-            if (maybe.toLowerCase().includes('post')) setVerdict('Post ✅');
-            else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah ❌');
+            if (maybe.toLowerCase().includes('post')) setVerdict('Post âœ…');
+            else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah âŒ');
           }
         }
 
         onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion, json?.score ?? null);
+        // Don't setLoading(false) on success — keep overlay until component unmounts
+        return;
       } catch (err: any) {
         console.error('Feedback request failed', err);
         const msg = err?.message ? String(err.message) : 'Something went wrong, please try again.';
@@ -452,307 +453,358 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
   };
 
   return (
-  <div className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800" onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); }}>
-      {/* Top-right auth controls */}
-      <div className="relative">
-        <div className="absolute top-4 right-4 z-10">
-          <AuthControls />
-        </div>
+    <div
+      className="min-h-screen relative overflow-hidden"
+      style={{ background: 'var(--deep-bg)' }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
+    >
+      {/* â”€â”€ Ambient Orbs â”€â”€ */}
+      <div className="orb orb-1 top-[-140px] left-[-100px] opacity-70" />
+      <div className="orb orb-2 bottom-[-100px] right-[-120px] opacity-60" style={{ animationDelay: '6s' }} />
+      <div className="orb orb-3 top-[50%] right-[8%] opacity-50" style={{ animationDelay: '10s' }} />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,rgba(124,58,237,0.16),transparent)] pointer-events-none" />
+
+      {/* â”€â”€ Auth controls (top-right) â”€â”€ */}
+      <div className="absolute top-4 right-4 z-20">
+        <AuthControls />
       </div>
 
-      {/* Main Content Container */}
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        {/* Header Section */}
+      {/* Hidden Cloudinary form */}
+      <div className="hidden">
+        <UploadForm onUpload={(url) => onPhotoUpload(url, selectedVibes, null, null, null)} />
+      </div>
+
+      <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" ref={fileInputRef} />
+      <input type="file" accept="image/*" multiple onChange={handleBatchFileSelect} className="hidden" ref={batchInputRef} />
+
+      {/* â”€â”€ Main content â”€â”€ */}
+      <div className="relative z-10 container mx-auto px-6 max-w-3xl" style={{ paddingTop: '5rem', paddingBottom: '2.5rem' }}>
+
+        {/* Header */}
         <motion.div
           className="text-center mb-8"
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
         >
           <div className="flex items-center justify-center mb-4 gap-3">
-            {/* Mask logos to remove any visible white fringe/outline */}
-            <div className="w-12 h-12 rounded-full overflow-hidden circle-mask transition-transform duration-200 ease-out hover:scale-105">
-              <img
-                src={newLogo}
-                alt="Post or Nah"
-                className="w-full h-full object-cover transform-gpu origin-center scale-[1.1] select-none pointer-events-none"
-                draggable={false}
-              />
+            <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <img src={newLogo} alt="Post or Nah" style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable={false} />
             </div>
-            <div className="w-12 h-12 rounded-full overflow-hidden circle-mask transition-transform duration-200 ease-out hover:scale-105">
-              <img
-                src={newLogo2}
-                alt="Post or Nah variant"
-                className="w-full h-full object-cover transform-gpu origin-center scale-[1.1] select-none pointer-events-none"
-                draggable={false}
-              />
+            <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <img src={newLogo2} alt="Post or Nah variant" style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable={false} />
             </div>
           </div>
-          <p className="text-blue-100 text-lg mb-2">
-            {isPremium ? (
-              `Premium - Check ${checksUsed + 1}`
-            ) : (
-              `Check ${checksUsed + 1}`
-            )}
-          </p>
-          <p className="text-blue-100 text-lg">
-            Credits remaining: {creditsBalance > 0 ? creditsBalance : isPremium ? '∞' : Math.max(0, 3 - checksUsed)}
-          </p>
+
+          <div className="flex justify-center gap-2 text-sm text-white/40 tracking-wide">
+            <span>{isPremium ? `Premium - Check ${checksUsed + 1}` : `Check ${checksUsed + 1}`}</span>
+            <span className="text-white/20">|</span>
+            <span>Credits remaining: {creditsBalance > 0 ? creditsBalance : isPremium ? 'unlimited' : Math.max(0, 3 - checksUsed)}</span>
+          </div>
         </motion.div>
 
-        {/* Upload Section */}
+        {/* Mode Toggle */}
         <motion.div
-          className="mb-8"
-          initial={{ opacity: 0, y: 20 }}
+          className="flex justify-start mb-8"
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
+          transition={{ delay: 0.15, duration: 0.5 }}
         >
-          {/* Mode Toggle */}
-          <div className="flex justify-center mb-6 bg-white/10 p-1 rounded-xl backdrop-blur-sm w-fit mx-auto">
-            <button
-              onClick={() => { setMode('rate'); setUploadedPhoto(null); setBatchFiles([]); }}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
-                mode === 'rate' ? 'bg-white text-blue-600 shadow-sm' : 'text-white hover:bg-white/10'
-              }`}
-            >
-              Rate My Photo
-            </button>
-            <button
-              onClick={() => { setMode('select'); setUploadedPhoto(null); setBatchFiles([]); }}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
-                mode === 'select' ? 'bg-white text-blue-600 shadow-sm' : 'text-white hover:bg-white/10'
-              }`}
-            >
-              Pick Best Photo
-            </button>
+          <div className="flex gap-2">
+            {(['rate', 'select'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setUploadedPhoto(null); setBatchFiles([]); }}
+                style={{
+                  padding: '10px 36px',
+                  borderRadius: '999px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  minWidth: '160px',
+                  textAlign: 'center',
+                  transition: 'all 0.2s',
+                  ...(mode === m
+                    ? { background: 'rgba(255,255,255,0.95)', color: '#111', border: '1.5px solid rgba(255,255,255,0.9)' }
+                    : { background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1.5px solid rgba(255,255,255,0.2)' }
+                  )
+                }}
+              >
+                {m === 'rate' ? 'Rate My Photo' : 'Pick Best Photo'}
+              </button>
+            ))}
           </div>
+        </motion.div>
 
-          {/* Hidden Cloudinary Upload Form */}
-          <div className="hidden">
-            <UploadForm onUpload={(url) => {
-              onPhotoUpload(url, selectedVibes, null, null, null);
-            }} />
-          </div>
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="hidden"
-            ref={fileInputRef}
-          />
-          
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleBatchFileSelect}
-            className="hidden"
-            ref={batchInputRef}
-          />
-
+        {/* Upload Zone */}
+        <motion.div
+          className="mb-10"
+          style={{ marginBottom: '3rem' }}
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25, duration: 0.55 }}
+        >
           {mode === 'rate' ? (
-            <Button
+            <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
-              variant="ghost"
+              className="w-full h-64 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300 group"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: uploadedPhoto ? '1.5px solid rgba(124,58,237,0.55)' : '1.5px dashed rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(16px)',
+                boxShadow: uploadedPhoto ? '0 0 32px rgba(124,58,237,0.2) inset' : 'none',
+                minHeight: '260px',
+                overflow: 'hidden',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(124,58,237,0.6)'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = uploadedPhoto ? 'rgba(124,58,237,0.55)' : 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
             >
               {uploadedPhoto ? (
-                <div className="flex flex-col items-center space-y-3">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', padding: '0 16px' }}>
                   {previewUrl && (
-                    <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/25 bg-white/5 backdrop-blur-sm shadow-lg flex items-center justify-center flex-shrink-0">
-                      <img
-                        src={previewUrl}
-                        alt="Selected preview"
-                        className="w-full h-full object-cover pointer-events-none select-none"
-                        onError={(e) => console.error('Image failed to load:', e)}
-                      />
+                    <div style={{ width: '120px', height: '120px', borderRadius: '16px', overflow: 'hidden', border: '2px solid rgba(124,58,237,0.5)', flexShrink: 0 }}>
+                      <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     </div>
                   )}
-                  <Camera className="w-10 h-10" />
-                  <span className="text-xl font-medium">Photo Selected ✓</span>
-                  <span className="text-sm text-blue-100 px-4 py-1 bg-white/10 rounded-full">
-                    {uploadedPhoto.name.length > 20 ? `${uploadedPhoto.name.substring(0, 20)}...` : uploadedPhoto.name}
+                  <span style={{ color: '#fff', fontWeight: 600, fontSize: '15px' }}>Photo Selected ✓</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', padding: '4px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {uploadedPhoto.name.length > 28 ? `${uploadedPhoto.name.substring(0, 28)}...` : uploadedPhoto.name}
                   </span>
                 </div>
               ) : (
-                <div className="flex flex-col items-center space-y-3">
-                  <Upload className="w-10 h-10" />
-                  <span className="text-2xl font-medium">Upload Photo</span>
-                  <span className="text-base text-blue-100">Get AI feedback on your picture</span>
+                <div className="flex flex-col items-center gap-2 text-white/50 group-hover:text-white/75 transition-colors">
+                  <Upload className="w-9 h-9 mb-1" />
+                  <span className="text-xl font-semibold text-white/70">Upload Photo</span>
                 </div>
               )}
-            </Button>
+            </button>
           ) : (
-            <Button
+            <button
               onClick={() => batchInputRef.current?.click()}
-              className="w-full h-40 bg-white/10 backdrop-blur-sm hover:bg-white/20 border-2 border-dashed border-white/40 text-white rounded-3xl flex flex-col items-center justify-center space-y-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
-              variant="ghost"
+              className="w-full h-64 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: batchFiles.length > 0 ? '1.5px solid rgba(124,58,237,0.55)' : '1.5px dashed rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(16px)',
+                minHeight: '260px',
+                overflow: 'hidden',
+              }}
             >
               {batchFiles.length > 0 ? (
-                <div className="flex flex-col items-center space-y-3">
-                  <div className="flex -space-x-4 overflow-hidden py-2">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%', padding: '0 16px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                     {batchPreviewUrls.slice(0, 5).map((url, i) => (
-                      <div key={i} className="w-12 h-12 rounded-full border-2 border-white overflow-hidden">
-                        <img src={url} className="w-full h-full object-cover" />
+                      <div key={i} style={{ width: '72px', height: '72px', borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(124,58,237,0.45)', flexShrink: 0 }}>
+                        <img src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       </div>
                     ))}
                     {batchFiles.length > 5 && (
-                      <div className="w-12 h-12 rounded-full border-2 border-white bg-blue-500 flex items-center justify-center text-xs font-bold">
+                      <div style={{ width: '72px', height: '72px', borderRadius: '12px', border: '2px solid rgba(124,58,237,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff', background: '#7c3aed', flexShrink: 0 }}>
                         +{batchFiles.length - 5}
                       </div>
                     )}
                   </div>
-                  <span className="text-xl font-medium">{batchFiles.length} Photos Selected ✓</span>
+                  <span style={{ color: '#fff', fontWeight: 600, fontSize: '15px' }}>{batchFiles.length} Photos Selected ✓</span>
                 </div>
               ) : (
-                <div className="flex flex-col items-center space-y-3">
-                  <Upload className="w-10 h-10" />
-                  <span className="text-2xl font-medium">Upload Batch</span>
-                  <span className="text-base text-blue-100">Select up to 30 photos</span>
+                <div className="flex flex-col items-center gap-2 text-white/50">
+                  <Upload className="w-9 h-9 mb-1" />
+                  <span className="text-xl font-semibold text-white/70">Upload Batch</span>
+                  <span className="text-sm text-white/35">Select up to 30 photos</span>
                 </div>
               )}
-            </Button>
+            </button>
           )}
-
         </motion.div>
 
-        {/* Vibe Selection - Only for Rate mode */}
+        {/* Vibe Selection */}
         {mode === 'rate' && (
           <motion.div
-            className="mb-8 relative z-10"
-            initial={{ opacity: 0, y: 20 }}
+            className="mb-10"
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+            transition={{ delay: 0.35, duration: 0.55 }}
           >
-            <h3 className="text-xl text-white text-center mb-6 font-medium">Select Vibes (up to 2)</h3>
-            <div className="flex flex-wrap gap-3 justify-center">
-              {VIBE_CATEGORIES.map((vibe) => (
-                <Badge
-                  key={vibe}
-                  onClick={() => handleVibeToggle(vibe)}
-                  className={`px-6 py-3 cursor-pointer transition-all duration-300 text-base font-medium rounded-full ${
-                    selectedVibes.includes(vibe)
-                      ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-xl scale-110 border-2 border-yellow-600'
-                      : 'bg-white/15 text-white hover:bg-white/25 border border-white/30 hover:scale-105'
-                  }`}
-                  variant="secondary"
-                >
-                  {selectedVibes.includes(vibe) && '✓ '}{vibe}
-                </Badge>
-              ))}
+            <p className="text-white/35 text-xs font-semibold uppercase tracking-widest text-center mb-4">Select Vibes (up to 2)</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center" }}>
+              {VIBE_CATEGORIES.map((vibe, i) => {
+                const selected = selectedVibes.includes(vibe);
+                return (
+                  <motion.button
+                    key={vibe}
+                    onClick={() => handleVibeToggle(vibe)}
+                    style={{ padding: "10px 22px", borderRadius: "999px", fontSize: "14px", fontWeight: 600, cursor: "pointer", ...(selected ? { background: "linear-gradient(135deg, #7c3aed, #9333ea)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 4px 20px rgba(124,58,237,0.5)" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }) }}
+                    initial={false}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + i * 0.04 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {selected && <span style={{ marginRight: 4 }}>&#10003;</span>}{vibe}
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.div>
         )}
 
         {/* Submit Button */}
         <motion.div
-          className="text-center mb-8"
-          initial={{ opacity: 0, y: 20 }}
+          className="mb-10"
+          style={{ display: 'flex', justifyContent: 'center', marginTop: '2.5rem' }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6, ease: "easeOut" }}
+          transition={{ delay: 0.5, duration: 0.5 }}
         >
           {mode === 'rate' ? (
-            <Button
+            <button
               onClick={handleSubmit}
-              disabled={!uploadedPhoto || selectedVibes.length === 0}
-              className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
+              disabled={!uploadedPhoto || selectedVibes.length === 0 || loading}
+              className="btn-primary py-4 text-base rounded-2xl disabled:opacity-35 disabled:cursor-not-allowed disabled:transform-none"
+              style={{ minWidth: '260px', paddingLeft: '3rem', paddingRight: '3rem' }}
             >
-              {loading ? 'Analyzing...' : 'Get AI Feedback'}
-            </Button>
+              <span className="relative z-10">{loading ? 'Analyzing...' : 'Get AI Feedback'}</span>
+            </button>
           ) : (
-            <Button
+            <button
               onClick={handleBatchSubmit}
-              disabled={batchFiles.length === 0}
-              className="bg-white text-blue-800 hover:bg-white/90 h-auto min-h-12 px-8 py-3 rounded-full text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.03] active:scale-95 hover:shadow-xl whitespace-nowrap w-fit"
+              disabled={batchFiles.length === 0 || loading}
+              className="btn-primary py-4 text-base rounded-2xl disabled:opacity-35 disabled:cursor-not-allowed disabled:transform-none"
+              style={{ minWidth: '260px', paddingLeft: '3rem', paddingRight: '3rem' }}
             >
-              {loading ? 'Analyzing Batch...' : 'Find Best Photo'}
-            </Button>
+              <span className="relative z-10">{loading ? 'Analyzing Batch...' : 'Find Best Photo'}</span>
+            </button>
           )}
         </motion.div>
 
-        {/* Loading State */}
+        {/* Loading overlay — full screen takeover */}
         {loading && (
           <motion.div
-            className="text-center mb-8"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 50,
+              background: 'var(--deep-bg)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: '2rem',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.35 }}
           >
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-8 py-6 rounded-3xl">
-              <div className="flex items-center justify-center space-x-3 mb-3">
-                <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span className="text-white text-lg font-medium">Analyzing your photo...</span>
+            {/* Photo + pulse ring */}
+            {uploadedPhoto && (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Outer pulse rings */}
+                <motion.div
+                  style={{
+                    position: 'absolute',
+                    width: 160, height: 160,
+                    borderRadius: '50%',
+                    border: '1.5px solid rgba(124,58,237,0.4)',
+                  }}
+                  animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <motion.div
+                  style={{
+                    position: 'absolute',
+                    width: 140, height: 140,
+                    borderRadius: '50%',
+                    border: '1.5px solid rgba(124,58,237,0.3)',
+                  }}
+                  animate={{ scale: [1, 1.25, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+                />
+                {/* Photo thumbnail */}
+                <div style={{ width: 110, height: 110, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                  <img
+                    src={URL.createObjectURL(uploadedPhoto)}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.75)' }}
+                  />
+                </div>
               </div>
-              <p className="text-blue-100 text-sm">This might take a few seconds</p>
+            )}
+
+            {/* Text */}
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <motion.p
+                style={{ color: '#fff', fontSize: '18px', fontWeight: 600, margin: 0 }}
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                Analyzing your photo
+              </motion.p>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px', margin: 0 }}>This might take a moment</p>
+            </div>
+
+            {/* Thin progress bar */}
+            <div style={{ width: 180, height: 2, borderRadius: 999, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+              <motion.div
+                style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #7c3aed, #a78bfa)' }}
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+              />
             </div>
           </motion.div>
         )}
 
-        {/* Error State */}
+        {/* Error */}
         {error && (
           <motion.div
-            className="mb-8"
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="mb-7 px-5 py-4 rounded-2xl"
+            style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.22)' }}
+            initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            transition={{ duration: 0.45 }}
           >
-            <div className="bg-red-900/20 backdrop-blur-sm border border-red-500/30 px-6 py-4 rounded-2xl">
-              <div className="text-red-200 text-center">
-                <div className="text-lg font-medium mb-2">Oops! Something went wrong</div>
-                <div className="text-sm opacity-90">{error}</div>
-              </div>
-            </div>
+            <p className="text-red-300 font-semibold mb-1 text-center">Something went wrong</p>
+            <p className="text-red-200/70 text-sm text-center whitespace-pre-wrap break-words">{error}</p>
           </motion.div>
         )}
 
-        {/* Results Section */}
+        {/* Results card */}
         {verdict && (
           <motion.div
-            className="mb-8"
-            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            className="mb-7"
+            initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ 
-              duration: 0.7, 
-              ease: [0.22, 1, 0.36, 1],
-              type: "spring",
-              stiffness: 100,
-              damping: 15
-            }}
+            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], type: 'spring', stiffness: 110, damping: 16 }}
           >
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl shadow-2xl">
-              <div className="space-y-6">
-                {/* Verdict Section */}
+            <div
+              className="p-7 rounded-3xl"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(24px)',
+                border: `1px solid ${verdict.includes('âœ…') ? 'rgba(74,222,128,0.28)' : verdict.includes('âŒ') ? 'rgba(248,113,113,0.28)' : 'rgba(250,204,21,0.28)'}`,
+                boxShadow: verdict.includes('âœ…') ? '0 0 40px rgba(74,222,128,0.12)' : verdict.includes('âŒ') ? '0 0 40px rgba(248,113,113,0.12)' : '0 0 40px rgba(250,204,21,0.12)',
+              }}
+            >
+              <div className="space-y-5">
+                {/* Verdict */}
                 <motion.div
                   className="text-center"
-                  initial={{ scale: 0.5, opacity: 0 }}
+                  initial={false}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
+                  transition={{ delay: 0.2, duration: 0.5, ease: 'easeOut' }}
                 >
-                  <div className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">
-                    Verdict
-                  </div>
-                  <div className="text-5xl font-bold text-white mb-2">
-                    {verdict}
-                  </div>
+                  <p className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-2">Verdict</p>
+                  <p className="text-5xl font-black">{verdict}</p>
                 </motion.div>
 
-                {/* Suggestion Section */}
+                {/* Divider */}
+                <div className="h-px w-full bg-white/[0.06]" />
+
+                {/* Suggestion */}
                 {suggestion && (
                   <motion.div
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 p-6 rounded-2xl"
-                    initial={{ opacity: 0, y: 20 }}
+                    className="px-5 py-4 rounded-2xl"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+                    transition={{ delay: 0.38, duration: 0.5 }}
                   >
-                    <div className="text-center">
-                      <div className="text-sm font-semibold text-blue-200/80 uppercase tracking-wider mb-3">
-                        Suggestion
-                      </div>
-                      <div className="text-lg text-blue-100 leading-relaxed max-w-md mx-auto">
-                        {suggestion}
-                      </div>
-                    </div>
+                    <p className="text-xs font-semibold text-white/35 uppercase tracking-widest text-center mb-2">Feedback</p>
+                    <p className="text-white/80 text-sm leading-relaxed text-center">{suggestion}</p>
                   </motion.div>
                 )}
               </div>
@@ -760,20 +812,23 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           </motion.div>
         )}
 
-        {/* Developer Debug Section */}
+        {/* Debug */}
         {rawResponse && (
           <motion.div
-            className="mb-8"
-            initial={{ opacity: 0 }}
+            className="mb-7"
+            initial={false}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
+            transition={{ delay: 0.9 }}
           >
-            <details className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
-              <summary className="cursor-pointer p-4 text-white/60 text-sm font-medium hover:bg-white/5 transition-colors">
-                Show raw response (debug)
+            <details
+              className="rounded-2xl overflow-hidden"
+              style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              <summary className="cursor-pointer p-4 text-white/35 text-xs font-medium hover:text-white/55 transition-colors">
+                Raw response (debug)
               </summary>
-              <div className="p-4 border-t border-white/10">
-                <pre className="text-xs text-white/70 overflow-auto max-h-48 whitespace-pre-wrap">
+              <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <pre className="text-xs text-white/50 overflow-auto max-h-48 whitespace-pre-wrap">
                   {JSON.stringify(rawResponse, null, 2)}
                 </pre>
               </div>
@@ -781,8 +836,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           </motion.div>
         )}
 
-        {/* Bottom Spacing for Scroll */}
-        <div className="h-20"></div>
+        <div className="h-16" />
       </div>
     </div>
   );
@@ -799,10 +853,11 @@ function AuthControls() {
     .join('');
 
   return (
-    <div className="flex flex-col items-end gap-2 p-2">
+    <div className="flex flex-col items-end gap-1.5 p-2">
       <button
         onClick={() => signOut()}
-        className="text-sm text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full"
+        className="text-sm text-white/70 hover:text-white/90 rounded-full transition-colors"
+        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', padding: '8px 20px', fontSize: '14px', fontWeight: 500 }}
       >
         Sign out
       </button>
@@ -810,11 +865,14 @@ function AuthControls() {
         <ImageWithFallback
           src={user.photoURL}
           alt={user.displayName || 'User avatar'}
-          className="w-10 h-10 rounded-full shadow-sm object-cover"
+          className="w-9 h-9 rounded-full object-cover ring-2 ring-violet-500/30 shadow-lg"
           referrerPolicy="no-referrer"
         />
       ) : (
-        <div className="w-10 h-10 rounded-full shadow-sm bg-white/20 backdrop-blur-sm flex items-center justify-center text-xs font-semibold text-white/80">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white/80"
+          style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)' }}
+        >
           {initials}
         </div>
       )}
@@ -822,7 +880,7 @@ function AuthControls() {
   );
 }
 
-// Unsigned upload form — posts directly to Cloudinary using an unsigned preset.
+// Unsigned upload form â€” posts directly to Cloudinary using an unsigned preset.
 // Usage: <UploadForm onUpload={(url) => { ... }} />
 function UploadForm({ onUpload }: { onUpload: (url: string) => void }) {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {

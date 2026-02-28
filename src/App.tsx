@@ -80,8 +80,8 @@ export default function App() {
 
     setCurrentPhoto({ file: photo, vibes, verdict: verdict ?? null, suggestion: suggestion ?? null, score: score ?? null });
     
-    // Increment check count on backend
-    await incrementCheck();
+    // Fire in background — don't block the screen transition
+    incrementCheck();
     
     setCurrentScreen('result');
   };
@@ -109,7 +109,7 @@ export default function App() {
   // is used to advance the flow automatically when a user signs in.
 
   return (
-    <div className="w-full min-h-screen overflow-x-hidden overflow-y-auto bg-gradient-to-b from-blue-300 to-blue-800">
+    <div className="w-full min-h-screen overflow-x-hidden overflow-y-auto" style={{ background: 'var(--deep-bg)' }}>
       <AnimatePresence mode="wait">
         {currentScreen === 'splash' && (
           <motion.div key="splash">
