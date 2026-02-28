@@ -9,18 +9,4 @@
     <priority>1.0</priority>
     <mobile:mobile/>
   </url>
-  <url>
-    <loc>https://www.postornah.com/pricing</loc>
-    <lastmod>2025-12-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
-  <url>
-    <loc>https://www.postornah.com/how-it-works</loc>
-    <lastmod>2025-12-27</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-    <mobile:mobile/>
-  </url>
 </urlset>
