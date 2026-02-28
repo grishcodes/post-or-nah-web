@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { signInWithGoogle } from '../firebaseConfig';
 import appIcon from '../assets/4aa122b285e3e6a8319c5a3638bb61ba822a9ec8.png';
 
@@ -105,17 +104,6 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
             </div>
           )}
         </div>
-
-        {/* Footer Navigation */}
-        <nav style={{ display: 'flex', gap: '16px', marginTop: '1rem' }}>
-          <Link to="/how-it-works" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', fontWeight: 500, textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-            How It Works
-          </Link>
-          <span style={{ color: 'rgba(255,255,255,0.3)' }}>•</span>
-          <Link to="/pricing" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', fontWeight: 500, textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-            Pricing
-          </Link>
-        </nav>
       </div>
     </div>
   );
