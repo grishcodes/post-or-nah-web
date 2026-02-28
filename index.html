@@ -48,14 +48,27 @@
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
       <link rel="dns-prefetch" href="https://www.google-analytics.com" />
       
-      <!-- Favicon -->
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      <!-- Favicon (Google Search uses this in results) -->
       <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
+      <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+      <link rel="shortcut icon" href="/favicon.ico" />
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+      <!-- Brand schema to reinforce site logo -->
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Post or Nah",
+          "url": "https://www.postornah.com/",
+          "logo": "https://www.postornah.com/favicon.png"
+        }
+      </script>
     </head>
 
-    <body>
-      <div id="root"></div>
+    <body style="margin: 0; padding: 0; background: #05050f; min-height: 100vh;">
+      <div id="root" style="display: flex; flex-direction: column; min-height: 100vh;"></div>
       <script type="module" src="/src/main.tsx"></script>
     </body>
   </html>

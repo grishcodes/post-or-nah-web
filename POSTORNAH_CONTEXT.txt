@@ -1,0 +1,40 @@
+PROJECT_NAME: Post or Nah
+PROJECT_URL: https://www.postornah.com
+PROJECT_TYPE: AI photo analysis web app
+CORE_USE_CASE: Decide whether to post a photo on social media
+PRIMARY_OUTPUTS: Verdict (Post ✅ / Nah ❌ / Tweak ✏️), Postability score (1-10), Suggestions
+AI_TECH: Google Cloud Vertex AI (Gemini 1.5 Flash)
+INPUTS: User-uploaded photos (base64 image)
+VIBE_CATEGORIES: Aesthetic core; Classy core; Rizz core; Matcha core; Baddie vibe; IG Story vibe
+TARGET_CHANNELS: Instagram; dating apps; social media
+FREE_TIER: 3 free checks per month
+PAID_TIER: Subscriptions with credit bundles (pricing IDs in Stripe)
+PAYMENT_PROVIDER: Stripe
+AUTH: Google sign-in via Firebase
+PLATFORM: Web app (React + Vite frontend; Node/Express backend)
+VALUE_PROP_SHORT: Instant AI vibe check before posting
+VALUE_PROP_LONG: AI analyzes photos for aesthetic fit and returns a clear verdict, score, and quick suggestions
+PRIMARY_USER_SEGMENTS: UNKNOWN
+SECONDARY_USER_SEGMENTS: UNKNOWN
+ENTERPRISE_BUYER_ROLES: UNKNOWN
+ENTERPRISE_PAIN_POINTS: UNKNOWN
+ENTERPRISE_VALUE_DRIVERS: UNKNOWN
+DIFFERENTIATORS: Multiple vibe modes; Gen-Z tone; instant verdict+score
+COMPETITIVE_ALTERNATIVES: Manual peer feedback; generic AI photo tools; social media drafts
+KEY_METRICS: Checks per user; conversion to paid; retention; share rate
+ONBOARDING_FLOW: Splash → Google login → Upload photo → Select vibe → Get verdict
+RETENTION_LOOPS: Repeat checks; credit top-ups
+RISKS: Model accuracy; user trust; content safety; cost per inference
+DATA_DEPENDENCIES: Google Cloud credentials; Firebase project; Stripe products
+COMPLIANCE_REQUIREMENTS: UNKNOWN
+SECURITY_REQUIREMENTS: UNKNOWN
+PARTNER_TYPES: Influencer networks; social media agencies; photography communities
+INTEGRATION_PARTNERS: Google Cloud; Firebase; Stripe
+TEST_HYPOTHESES: Users want quick yes/no guidance; vibe-specific feedback increases satisfaction; score boosts engagement
+TEST_PLANS: A/B test verdict framing; test vibe order defaults; test free-credit limits
+GTM_MOTION: UNKNOWN
+PRICING_STRATEGY: Subscription + credits
+CUSTOMER_SEGMENTATION_NOTES: UNKNOWN
+ENTERPRISE_EXPANSION_PATH: UNKNOWN
+PARTNER_OUTREACH_NOTES: Target creators and social platforms for co-marketing
+UNKNOWN_FIELDS: Enterprise positioning; target industries; buyer roles; compliance needs
