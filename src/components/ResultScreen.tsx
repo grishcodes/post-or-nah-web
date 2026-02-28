@@ -92,6 +92,7 @@ const generateAIResponse = (vibes: string[]) => {
 export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, score: scoreProp, onTryAnother }: ResultScreenProps) {
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
 
   const aiResponse = verdictProp
     ? { verdict: verdictProp, suggestions: suggestionProp ? [suggestionProp] : [] }
@@ -128,6 +129,13 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
     }
   }, [photo]);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <motion.div
       style={{ minHeight: '100vh', background: 'var(--deep-bg)', position: 'relative', overflow: 'hidden' }}
@@ -142,21 +150,21 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124,58,237,0.14), transparent)', pointerEvents: 'none' }} />
 
       {/* Two-column layout */}
-      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'row', alignItems: 'stretch', minHeight: '100vh', maxWidth: '1100px', margin: '0 auto', padding: '2.5rem 2rem', gap: '2.5rem' }}>
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'stretch', minHeight: '100vh', maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '1rem 0.9rem 1.5rem' : '2.5rem 2rem', gap: isMobile ? '1rem' : '2.5rem' }}>
 
         {/* LEFT — Photo */}
         <motion.div
-          style={{ flex: '0 0 45%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+          style={{ flex: isMobile ? '0 0 auto' : '0 0 45%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
           initial={{ x: -40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.15, type: 'spring', stiffness: 140, damping: 20 }}
         >
           {photoUrl ? (
-            <div style={{ borderRadius: '24px', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.75)', position: 'relative' }}>
+            <div style={{ borderRadius: isMobile ? '18px' : '24px', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.75)', position: 'relative' }}>
               <img
                 src={photoUrl}
                 alt="Uploaded photo"
-                style={{ width: '100%', height: 'auto', maxHeight: 'calc(100vh - 5rem)', objectFit: 'cover', display: 'block' }}
+                style={{ width: '100%', height: 'auto', maxHeight: isMobile ? '56vh' : 'calc(100vh - 5rem)', objectFit: 'cover', display: 'block' }}
               />
               <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(255,255,255,0.03), transparent)', pointerEvents: 'none' }} />
             </div>
@@ -168,11 +176,11 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
         </motion.div>
 
         {/* RIGHT — All info */}
-        <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '1.5rem', overflowY: 'auto' }}>
+        <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: isMobile ? '0.9rem' : '1.5rem', overflowY: 'visible' }}>
 
           {/* Header */}
           <motion.h1
-            style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}
+            style={{ fontSize: isMobile ? '1.35rem' : '1.75rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}
             className="gradient-text"
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -203,14 +211,14 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           {/* Score ring row */}
           <motion.div
             className="glass"
-            style={{ borderRadius: '20px', padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}
+            style={{ borderRadius: '20px', padding: isMobile ? '1rem' : '1.5rem', display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.5rem' }}
             initial={{ x: 30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.3, type: 'spring', stiffness: 130, damping: 18 }}
           >
             {/* Ring */}
-            <div style={{ position: 'relative', width: 96, height: 96, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="96" height="96" viewBox="0 0 112 112" style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+            <div style={{ position: 'relative', width: isMobile ? 84 : 96, height: isMobile ? 84 : 96, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width={isMobile ? 84 : 96} height={isMobile ? 84 : 96} viewBox="0 0 112 112" style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
                 <circle cx="56" cy="56" r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="6" />
                 <motion.circle
                   cx="56" cy="56" r={R}
@@ -227,7 +235,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
                 />
               </svg>
               <motion.span
-                style={{ position: 'relative', fontSize: '2rem', fontWeight: 900, color: getScoreColor(score) }}
+                style={{ position: 'relative', fontSize: isMobile ? '1.7rem' : '2rem', fontWeight: 900, color: getScoreColor(score) }}
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.7, type: 'spring', stiffness: 220 }}
@@ -255,7 +263,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
             className="glass"
             style={{
               borderRadius: '20px',
-              padding: '1.5rem',
+              padding: isMobile ? '1rem' : '1.5rem',
               textAlign: 'center',
               boxShadow: getVerdictGlow(aiResponse.verdict),
               borderColor: getVerdictBorder(aiResponse.verdict),
@@ -266,7 +274,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           >
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Verdict</p>
             <motion.p
-              style={{ fontSize: '2.25rem', fontWeight: 900, margin: 0, lineHeight: 1.2 }}
+              style={{ fontSize: isMobile ? '1.7rem' : '2.25rem', fontWeight: 900, margin: 0, lineHeight: 1.2 }}
               initial={{ scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.45, type: 'spring', stiffness: 180 }}
@@ -278,7 +286,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
           {/* Feedback */}
           <motion.div
             className="glass"
-            style={{ borderRadius: '20px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}
+            style={{ borderRadius: '20px', padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}
             initial={{ x: 30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.5, type: 'spring', stiffness: 130, damping: 18 }}
@@ -299,7 +307,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
 
           {/* Buttons */}
           <motion.div
-            style={{ display: 'flex', gap: '12px' }}
+            style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.7 }}
