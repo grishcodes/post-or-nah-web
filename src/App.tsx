@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { SplashScreen } from './components/SplashScreen';
 import { UploadScreen } from './components/UploadScreen';
 import { ResultScreen } from './components/ResultScreen';
-// import {pricingplan} from './components/PricingPlan';
 import { SubscriptionScreen } from './components/SubscriptionScreen';
+import { PricingPage } from './pages/PricingPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useUserSubscription } from './hooks/useUserSubscription';
@@ -20,10 +22,12 @@ interface PhotoData {
   score?: number | null;
 }
 
-export default function App() {
+function MainApp() {
   const [user, setUser] = useState<any | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [currentPhoto, setCurrentPhoto] = useState<PhotoData | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
   
   // Use the new backend-powered subscription hook
   const { checksUsed, isPremium, creditsBalance, loading, incrementCheck, updatePremium, refetch } = useUserSubscription(user);
@@ -50,11 +54,13 @@ export default function App() {
         setCurrentScreen('splash');
       } else {
         // when user signs in, move to upload screen
-        setCurrentScreen('upload');
+        if (currentScreen === 'splash') {
+          setCurrentScreen('upload');
+        }
       }
     });
     return () => unsub();
-  }, []);
+  }, [currentScreen]);
 
   // Refetch subscription data when returning from payment (e.g., after Stripe checkout)
   useEffect(() => {
@@ -105,9 +111,16 @@ export default function App() {
     setCurrentScreen('upload');
   };
 
-  // App renders normally; routing handles the /login page. Auth state
-  // is used to advance the flow automatically when a user signs in.
+  // For public pages, just render them directly
+  if (location.pathname === '/pricing') {
+    return <PricingPage user={user} />;
+  }
 
+  if (location.pathname === '/how-it-works') {
+    return <HowItWorksPage />;
+  }
+
+  // Main app flow (for authenticated or splash screen)
   return (
     <div className="w-full min-h-screen overflow-x-hidden overflow-y-auto" style={{ background: 'var(--deep-bg)' }}>
       <AnimatePresence mode="wait">
@@ -163,5 +176,13 @@ export default function App() {
         </motion.div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <MainApp />
+    </BrowserRouter>
   );
 }
