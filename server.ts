@@ -298,7 +298,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // --- Google Vertex AI Configuration ---
 const project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
 const location = process.env.GCLOUD_LOCATION || process.env.GOOGLE_CLOUD_REGION || process.env.GCLOUD_REGION || 'us-central1';
-const modelName = process.env.GCLOUD_MODEL || process.env.VERTEX_MODEL || 'gemini-2.0-flash';
+const modelName = process.env.GCLOUD_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash';
 
 let vertexAI: VertexAI | null = null;
 
@@ -430,45 +430,6 @@ if (!project) {
   }
 }
 
-// --- GLOBAL CALIBRATION: Defines modern social media standards for the AI ---
-// This ensures the AI accepts "vibey" photos but rejects "internet junk" AND "bad angles".
-const GLOBAL_CALIBRATION = `
-**GLOBAL DECISION CALIBRATION (APPLIES TO ALL VIBES):**
-
-1. **THE "REAL CONTENT" FILTER (CRITICAL):**
-   - **Memes / Random Screenshots:** Unless it is *extremely* funny or relevant, the verdict is **"NAH"**. Tell them: "This belongs in the group chat, not the Story."
-   - **AI Art / Cartoons / Fake Images:** Immediate **"NAH"**. Tell them: "Keep it real, we don't post AI/Google images."
-   - **Niche/Random (e.g., Baby Memes):** If it's a random internet picture that isn't about the user's life, it's usually a **"NAH"**.
-
-2. **THE "FLATTERY & ICK" FILTER (NEW & CRITICAL):**
-   - **Just because a photo is "vibey" doesn't mean the user looks good.**
-   - **SPECIFIC PHYSICAL CHECKS (The "Hard to Look At" List):**
-     - **Posture:** Is it "cool slouching" (relaxed) or "bad posture" (hunchback, unconfident, nerd neck)? If it looks weak -> **NAH**.
-     - **Chin/Jaw:** Check for *accidental* double chins or unflattering neck angles. (Intentional silly faces are okay, accidental bad angles are NOT).
-     - **Hands:** Look for "hover hands," awkward claws, or stiff fingers. If the hands look weird -> **TWEAK IT**.
-     - **Eyes/Expression:** Dead eyes, half-closed blinks, or that "I'm in pain" smile.
-   - *Rule:* If the physical awkwardness makes you cringe, the lighting cannot save it.
-
-3. **DO NOT penalize a *REAL* photo solely because:**
-   - lighting is dark, moody, or flash-heavy
-   - the face is partially hidden, turned away, or obscured
-   - the image is soft, grainy, or has motion blur
-   - the angle is "0.5x" or distorted
-   **If it is a real photo of the user/life, these are stylistic choices.**
-
-4. **Face visibility rule:**
-   - If the face is not clearly visible BUT the pose, outfit, or energy reads well:
-   → This is NOT a reason to downgrade the verdict.
-
-5. **Lighting rule:**
-   - Imperfect lighting ≠ bad lighting.
-   - Only penalize lighting if the image is unintelligible (pitch black) or if it actively clashes with the specific vibe.
-
-6. **Verdict sanity check:**
-   - Ask: "If this was me, would I want this posted? Or do I look bad in it?"
-   - If the user looks bad -> **"NAH"**.
-`;
-
 // --- MASTER INSTRUCTIONS: THE BRAIN OF THE AI ---
 // This block allows the AI to accept modern trends while filtering out low-quality internet clutter.
 const MASTER_VISUAL_INSTRUCTIONS = `
@@ -543,17 +504,6 @@ const MASTER_VISUAL_INSTRUCTIONS = `
    - **BANNED WORDS:** NEVER use "dude", "bro", "man", "buddy", "pal", "my guy".
   - **Addressing:** Match who you're hyping. If masculine-presenting, prefer "twin" / "king"; if feminine-presenting, "bestie" / "queen"; if unclear, keep it neutral.
    - **Examples:** "TWIN THIS IS IT", "no cap this goes crazy", "ate and left no crumbs bestie", "the main character energy is immaculate", "understood the assignment fr fr"
-
-5. **THE "IT'S A VIBE" RULE (FOR REAL PHOTOS ONLY):**
-   - **Low Light / Dark / Moody:** This is often a stylistic choice. If the silhouette or mood is cool, it is GOOD.
-   - **Flash Photography:** Harsh flash is a TREND. Do not call it "bad lighting."
-   - **Grain / Noise / Blur:** Motion blur and film grain are aesthetic choices. Do not penalize them.
-   - **Hidden Faces:** Phones covering faces, looking away, or "mystery" angles are POSITIVE stylistic choices.
-
-5. **THE MIRROR SELFIE & FIT CHECK RULE:**
-   - **Context:** If the user is in front of a mirror, ignore professional photography rules.
-   - **Distance:** Being far away to show the shoes/pants is CORRECT.
-   - **Focus:** If the outfit looks good and the stance is chill, the verdict is "POST IT".
 
 5. **THE "IT'S A VIBE" RULE (FOR REAL PHOTOS ONLY):**
    - **Low Light / Dark / Moody:** This is often a stylistic choice. If the silhouette or mood is cool, it is GOOD.
@@ -795,13 +745,10 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
 
     const modelCandidates = Array.from(new Set([
       modelName,
-      // Prefer stable Vertex publisher models first
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-001',
-      // Older aliases/variants (may or may not exist depending on project access)
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      // Currently supported Vertex publisher models (2.0-* line retired June 2026)
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-pro',
     ])).filter(Boolean);
 
     let result: any = null;
@@ -827,8 +774,9 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 256,
-          },
+            maxOutputTokens: 1024,
+            thinkingConfig: { thinkingBudget: 0 },
+          } as any,
         });
         console.log(`✅ Model succeeded: ${m}`);
         break;
@@ -878,10 +826,14 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
         else if (mappedVerdict.includes('✏️')) score = 5;
         else score = 2;
       }
+      const reasons = Array.isArray(parsed.reasons)
+        ? parsed.reasons.filter((r: unknown) => typeof r === 'string' && r.trim().length).slice(0, 4)
+        : [];
       return {
         verdict: mappedVerdict,
         suggestion,
         score,
+        reasons,
         raw: result.response,
       };
     }
@@ -911,7 +863,7 @@ async function getVertexFeedback(imageBase64: string, category?: string): Promis
     } else if (msgLower.includes('503') || msgLower.includes('unavailable') || msgLower.includes('deadline') || msgLower.includes('timeout')) {
       suggestion = 'Vertex AI temporarily unavailable or timed out. Please retry; backend now auto-retries transient errors.';
     } else if (msgLower.includes('not found') || msgLower.includes('404')) {
-      suggestion = 'Model or region not found. Verify GCLOUD_LOCATION and GCLOUD_MODEL; for Vertex AI try gemini-2.0-flash in us-central1.';
+      suggestion = 'Model or region not found. Verify GCLOUD_LOCATION and GCLOUD_MODEL; for Vertex AI try gemini-2.5-flash in us-central1.';
     }
 
     return {
@@ -954,26 +906,32 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
   try {
     const modelCandidates = Array.from(new Set([
       modelName,
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-001',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-pro',
     ])).filter(Boolean);
 
     const prompt = `
-    I am providing you with multiple images. Your task is to analyze all of them and select the single best one to be the first slide of a social media post (like Instagram).
-    
-    Consider:
-    - Facial expressions (looking for genuine, flattering, or confident expressions)
-    - Body language (posture, vibe)
-    - Lighting and composition
-    - Overall aesthetic appeal
+    **ROLE:** You are the user's most brutally honest photo-picking friend. You're going through their camera roll to find the ONE shot worth posting.
 
-    Return a JSON object with:
-    - "selectedIndex": The 0-based index of the best image from the provided list.
-    - "reason": A short, fun, and encouraging explanation of why this photo is the winner.
-    - "verdict": "WINNER 🏆"
+    **THE IMAGES:** You are given ${imagesData.length} images, labeled Image 0 through Image ${imagesData.length - 1} in the exact order they appear below. Your job is to pick exactly ONE winner.
+
+    **ADDRESSING RULE:** Don't assume gender from limited visual cues. Default to "twin"; use "bestie"/"queen" or "king"/"legend" only when the subject's presentation clearly fits; use "y'all" for groups. Stay neutral ("you") when unsure.
+
+    **HOW TO JUDGE (in priority order):**
+    1. **Reject junk first:** If an image is a meme, screenshot, blurry unusable mess, or AI/cartoon image, it cannot win unless literally every image has the same problem.
+    2. **Flattery check:** Genuine expression, comfortable posture, good angle. A technically sharp photo where the subject looks awkward loses to a slightly softer photo where they look great.
+    3. **Story-worthy energy:** Does it capture a real, interesting moment — not just a stiff, posed shot?
+    4. **Lighting & composition:** Only a tiebreaker between two otherwise-strong photos. Don't let this override the flattery check.
+    5. **Ties:** If two images are genuinely close, prefer the one with the more natural/candid energy.
+
+    **OUTPUT FORMAT (STRICT):**
+    Return **JSON only** — no markdown fences, no text before/after:
+    {
+      "selectedIndex": number,   // 0-based index of the winning image, matching the labels above
+      "verdict": "WINNER 🏆",
+      "reason": string           // 1-2 short sentences, Gen Z voice (twin/bestie/no cap/fr fr), hype but specific about WHY this one beat the others
+    }
     `;
 
     const parts: any[] = [{ text: prompt }];
@@ -999,8 +957,9 @@ async function getBestPhotoSelection(imagesData: Array<{ base64: string; mimeTyp
           contents: [{ role: 'user', parts }],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 512,
-          },
+            maxOutputTokens: 1024,
+            thinkingConfig: { thinkingBudget: 0 },
+          } as any,
         });
         console.log(`✅ Model succeeded: ${m}`);
         break; // success

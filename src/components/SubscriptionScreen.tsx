@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Crown, Check, X } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface SubscriptionScreenProps {
   onUpgrade: () => void;
@@ -54,6 +54,14 @@ async function handlePurchase(priceId: string, user: User | null) {
 
 export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScreenProps) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const plans = [
     { label: 'Pre Start', price: '$1/mo', credits: '10 credits', priceId: 'price_1Skb33Fvu58DRDkCqEOvW03I' },
@@ -91,47 +99,47 @@ export function SubscriptionScreen({ onUpgrade, onClose, user }: SubscriptionScr
         <X size={16} />
       </button>
 
-      {/* Two-column layout */}
-      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'row', alignItems: 'center', minHeight: '100vh', maxWidth: '1000px', margin: '0 auto', padding: '3rem 2rem', gap: '3rem' }}>
+      {/* Two-column layout (stacks on mobile) */}
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', minHeight: '100vh', maxWidth: '1000px', margin: '0 auto', padding: isMobile ? '4rem 1.25rem 2rem' : '3rem 2rem', gap: isMobile ? '1.5rem' : '3rem' }}>
 
         {/* LEFT — Crown + tagline + pricing highlight */}
         <motion.div
-          style={{ flex: '0 0 42%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.75rem' }}
+          style={{ flex: isMobile ? '0 0 auto' : '0 0 42%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? '1.1rem' : '1.75rem' }}
           initial={{ x: -40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.15, type: 'spring', stiffness: 140, damping: 20 }}
         >
           {/* Crown */}
           <motion.div
-            style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', borderRadius: '50%', padding: '1.4rem', boxShadow: '0 8px 40px rgba(251,191,36,0.5)' }}
+            style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', borderRadius: '50%', padding: isMobile ? '1rem' : '1.4rem', boxShadow: '0 8px 40px rgba(251,191,36,0.5)' }}
             initial={{ scale: 0, rotate: -30 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.25, type: 'spring', stiffness: 200, damping: 16 }}
           >
-            <Crown size={44} color="#92400e" />
+            <Crown size={isMobile ? 34 : 44} color="#92400e" />
           </motion.div>
 
           {/* Text */}
           <div style={{ textAlign: 'center', lineHeight: 1.3 }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '1.3rem', fontWeight: 500, margin: 0 }}>You've used your</p>
-            <p style={{ fontSize: '2.4rem', fontWeight: 900, margin: '4px 0', background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>3 free checks</p>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '1.3rem', fontWeight: 500, margin: 0 }}>this month</p>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: isMobile ? '1.05rem' : '1.3rem', fontWeight: 500, margin: 0 }}>You've used your</p>
+            <p style={{ fontSize: isMobile ? '1.8rem' : '2.4rem', fontWeight: 900, margin: '4px 0', background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>3 free checks</p>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: isMobile ? '1.05rem' : '1.3rem', fontWeight: 500, margin: 0 }}>this month</p>
           </div>
 
           {/* Pricing highlight card */}
-          <div className="glass" style={{ borderRadius: '20px', padding: '1.75rem 2rem', textAlign: 'center', width: '100%' }}>
+          <div className="glass" style={{ borderRadius: '20px', padding: isMobile ? '1.25rem 1.5rem' : '1.75rem 2rem', textAlign: 'center', width: '100%' }}>
             <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#92400e', fontWeight: 700, fontSize: '14px', borderRadius: '999px', padding: '5px 18px', marginBottom: '1rem' }}>
               Unlock More
             </span>
             <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '15px', margin: '0 0 6px' }}>Starting from</p>
-            <p style={{ fontSize: '3rem', fontWeight: 900, color: '#fff', margin: '0 0 4px', lineHeight: 1 }}>$1<span style={{ fontSize: '1.3rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/mo</span></p>
+            <p style={{ fontSize: isMobile ? '2.4rem' : '3rem', fontWeight: 900, color: '#fff', margin: '0 0 4px', lineHeight: 1 }}>$1<span style={{ fontSize: '1.3rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/mo</span></p>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>10 credits monthly • Cancel anytime</p>
           </div>
         </motion.div>
 
         {/* RIGHT — Features + plans + buttons */}
         <motion.div
-          style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+          style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', gap: isMobile ? '1rem' : '1.25rem' }}
           initial={{ x: 40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.25, type: 'spring', stiffness: 140, damping: 20 }}

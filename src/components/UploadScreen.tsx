@@ -11,7 +11,7 @@ import { SafariCompat } from '../lib/safariCompat';
 
 interface UploadScreenProps {
   // onPhotoUpload now accepts either a File (local) or a string (uploaded URL)
-  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null, score?: number | null) => void;
+  onPhotoUpload: (photo: File | string, vibes: string[], verdict?: string | null, suggestion?: string | null, score?: number | null, reasons?: string[] | null) => void;
   checksUsed: number;
   isPremium: boolean;
   creditsBalance?: number;
@@ -198,14 +198,14 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
     );
 
     try {
-      console.log(`ðŸ”„ Starting batch analysis for ${batchFiles.length} images...`);
+      console.log(`🔄 Starting batch analysis for ${batchFiles.length} images...`);
       
       // Create FormData to handle both binary and base64
       const formData = new FormData();
       
       for (let i = 0; i < batchFiles.length; i++) {
         const file = batchFiles[i];
-        console.log(`ðŸ“„ Processing file ${i + 1}: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
+        console.log(`📄 Processing file ${i + 1}: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
 
         let toAppend: File = file;
         let isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
@@ -227,7 +227,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             toAppend = new File([blob as BlobPart], outName, { type: 'image/jpeg' });
             heicConvertedToJpeg = true;
             isHeic = false;
-            console.log(`ðŸ§¾ HEICâ†’JPEG: ${file.name} â†’ ${outName} (${Math.round((toAppend.size)/1024)}KB)`);
+            console.log(`🧾 HEIC→JPEG: ${file.name} → ${outName} (${Math.round((toAppend.size)/1024)}KB)`);
           } catch (e: any) {
             console.warn('âš ï¸ HEIC conversion failed in browser; sending original HEIC to backend:', e);
             setRawResponse(`HEIC conversion failed in browser: ${e?.message || String(e)}`);
@@ -241,7 +241,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.8 } as const;
             if (file.size > 2_500_000) {
               const compressed = await imageCompression(file, opts);
-              console.log(`ðŸ”§ Compressed ${file.name}: ${Math.round(file.size/1024)}KB â†’ ${Math.round(compressed.size/1024)}KB`);
+              console.log(`🔧 Compressed ${file.name}: ${Math.round(file.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
               toAppend = compressed as File;
             }
           } catch (e) {
@@ -255,7 +255,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             const opts = { maxSizeMB: 2, maxWidthOrHeight: 1600, useWebWorker: true, initialQuality: 0.82 } as const;
             if (toAppend.size > 2_500_000) {
               const compressed = await imageCompression(toAppend, opts);
-              console.log(`ðŸ”§ Compressed (post-convert) ${toAppend.name}: ${Math.round(toAppend.size/1024)}KB â†’ ${Math.round(compressed.size/1024)}KB`);
+              console.log(`🔧 Compressed (post-convert) ${toAppend.name}: ${Math.round(toAppend.size/1024)}KB → ${Math.round(compressed.size/1024)}KB`);
               toAppend = compressed as File;
             }
           } catch (e) {
@@ -270,12 +270,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       let lastErr: any = null;
       for (const url of selectBestCandidates) {
         try {
-          console.log(`ðŸ“¤ Sending request to ${url} with ${batchFiles.length} images`);
+          console.log(`📤 Sending request to ${url} with ${batchFiles.length} images`);
           const response = await fetch(url, {
             method: 'POST',
             body: formData,
           });
-          console.log(`ðŸ“¨ Response status: ${response.status} ${response.statusText}`);
+          console.log(`📨 Response status: ${response.status} ${response.statusText}`);
           if (!response.ok) {
             let bodyText = '';
             try { bodyText = await response.text(); } catch { bodyText = ''; }
@@ -298,8 +298,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         throw lastErr || new Error(`All endpoints failed: ${selectBestCandidates.join(', ')}`);
       }
       
-      console.log('âœ… Received response:', data);
-      console.log('âœ… Received response:', data);
+      console.log('✅ Received response:', data);
       
       if (data.error) {
         setRawResponse(data.raw || null);
@@ -411,12 +410,12 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
         if (!json?.verdict && json?.raw) {
           const maybe = (json.raw?.generated_text || json.raw?.text || '') as string;
           if (maybe) {
-            if (maybe.toLowerCase().includes('post')) setVerdict('Post âœ…');
+            if (maybe.toLowerCase().includes('post')) setVerdict('Post ✅');
             else if (maybe.toLowerCase().includes('nah')) setVerdict('Nah âŒ');
           }
         }
 
-        onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion, json?.score ?? null);
+        onPhotoUpload(uploadedPhoto, selectedVibes, json?.verdict ?? verdict, json?.suggestion ?? suggestion, json?.score ?? null, json?.reasons ?? null);
         // Don't setLoading(false) on success — keep overlay until component unmounts
         return;
       } catch (err: any) {
@@ -454,8 +453,8 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden"
-      style={{ background: 'var(--deep-bg)' }}
+      className="min-h-screen overflow-hidden"
+      style={{ background: 'var(--deep-bg)', position: 'relative' }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => e.preventDefault()}
     >
@@ -468,11 +467,6 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
       {/* â”€â”€ Auth controls (top-right) â”€â”€ */}
       <div className="absolute top-4 right-4 z-20">
         <AuthControls />
-      </div>
-
-      {/* Hidden Cloudinary form */}
-      <div className="hidden">
-        <UploadForm onUpload={(url) => onPhotoUpload(url, selectedVibes, null, null, null)} />
       </div>
 
       <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" ref={fileInputRef} />
@@ -511,18 +505,19 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.5 }}
         >
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '360px', flexWrap: 'wrap' }}>
             {(['rate', 'select'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setUploadedPhoto(null); setBatchFiles([]); }}
                 style={{
-                  padding: '10px 36px',
+                  padding: '10px 20px',
                   borderRadius: '999px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  minWidth: '160px',
+                  flex: '1 1 140px',
                   textAlign: 'center',
+                  whiteSpace: 'nowrap',
                   transition: 'all 0.2s',
                   ...(mode === m
                     ? { background: 'rgba(255,255,255,0.95)', color: '#111', border: '1.5px solid rgba(255,255,255,0.9)' }
@@ -691,7 +686,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
             transition={{ duration: 0.35 }}
           >
             {/* Photo + pulse ring */}
-            {uploadedPhoto && (
+            {previewUrl && (
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {/* Outer pulse rings */}
                 <motion.div
@@ -717,7 +712,7 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
                 {/* Photo thumbnail */}
                 <div style={{ width: 110, height: 110, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
                   <img
-                    src={URL.createObjectURL(uploadedPhoto)}
+                    src={previewUrl}
                     alt=""
                     style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.75)' }}
                   />
@@ -759,80 +754,6 @@ export function UploadScreen({ onPhotoUpload, checksUsed, isPremium, creditsBala
           >
             <p className="text-red-300 font-semibold mb-1 text-center">Something went wrong</p>
             <p className="text-red-200/70 text-sm text-center whitespace-pre-wrap break-words">{error}</p>
-          </motion.div>
-        )}
-
-        {/* Results card */}
-        {verdict && (
-          <motion.div
-            className="mb-7"
-            initial={false}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], type: 'spring', stiffness: 110, damping: 16 }}
-          >
-            <div
-              className="p-7 rounded-3xl"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                backdropFilter: 'blur(24px)',
-                border: `1px solid ${verdict.includes('âœ…') ? 'rgba(74,222,128,0.28)' : verdict.includes('âŒ') ? 'rgba(248,113,113,0.28)' : 'rgba(250,204,21,0.28)'}`,
-                boxShadow: verdict.includes('âœ…') ? '0 0 40px rgba(74,222,128,0.12)' : verdict.includes('âŒ') ? '0 0 40px rgba(248,113,113,0.12)' : '0 0 40px rgba(250,204,21,0.12)',
-              }}
-            >
-              <div className="space-y-5">
-                {/* Verdict */}
-                <motion.div
-                  className="text-center"
-                  initial={false}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.2, duration: 0.5, ease: 'easeOut' }}
-                >
-                  <p className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-2">Verdict</p>
-                  <p className="text-5xl font-black">{verdict}</p>
-                </motion.div>
-
-                {/* Divider */}
-                <div className="h-px w-full bg-white/[0.06]" />
-
-                {/* Suggestion */}
-                {suggestion && (
-                  <motion.div
-                    className="px-5 py-4 rounded-2xl"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                    initial={false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.38, duration: 0.5 }}
-                  >
-                    <p className="text-xs font-semibold text-white/35 uppercase tracking-widest text-center mb-2">Feedback</p>
-                    <p className="text-white/80 text-sm leading-relaxed text-center">{suggestion}</p>
-                  </motion.div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Debug */}
-        {rawResponse && (
-          <motion.div
-            className="mb-7"
-            initial={false}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.9 }}
-          >
-            <details
-              className="rounded-2xl overflow-hidden"
-              style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)' }}
-            >
-              <summary className="cursor-pointer p-4 text-white/35 text-xs font-medium hover:text-white/55 transition-colors">
-                Raw response (debug)
-              </summary>
-              <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <pre className="text-xs text-white/50 overflow-auto max-h-48 whitespace-pre-wrap">
-                  {JSON.stringify(rawResponse, null, 2)}
-                </pre>
-              </div>
-            </details>
           </motion.div>
         )}
 
@@ -880,32 +801,3 @@ function AuthControls() {
   );
 }
 
-// Unsigned upload form â€” posts directly to Cloudinary using an unsigned preset.
-// Usage: <UploadForm onUpload={(url) => { ... }} />
-function UploadForm({ onUpload }: { onUpload: (url: string) => void }) {
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'your_unsigned_preset'); // replace with your unsigned preset
-
-    try {
-      const res = await fetch('https://api.cloudinary.com/v1_1/YOUR_CLOUD_NAME/image/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.secure_url) {
-        onUpload(data.secure_url);
-      } else {
-        console.error('Cloudinary upload failed', data);
-      }
-    } catch (err) {
-      console.error('Upload error', err);
-    }
-  };
-
-  return <input type="file" accept="image/*" onChange={handleFile} className="mb-2" />;
-}

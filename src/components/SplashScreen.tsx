@@ -36,8 +36,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-6"
-      style={{ background: 'var(--deep-bg)' }}
+      className="min-h-screen overflow-hidden flex flex-col items-center justify-center px-6"
+      style={{ background: 'var(--deep-bg)', position: 'relative' }}
     >
       {/* Ambient orbs */}
       <div className="orb orb-1 top-[-140px] left-[-120px] opacity-80" />

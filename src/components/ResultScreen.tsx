@@ -8,6 +8,7 @@ interface ResultScreenProps {
   verdict?: string;
   suggestion?: string;
   score?: number;
+  reasons?: string[];
   onTryAnother: () => void;
 }
 
@@ -89,7 +90,7 @@ const generateAIResponse = (vibes: string[]) => {
     : { verdict: 'Post ✅', suggestions: ['Looking good!', 'Great photo quality'] };
 };
 
-export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, score: scoreProp, onTryAnother }: ResultScreenProps) {
+export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: suggestionProp, score: scoreProp, reasons, onTryAnother }: ResultScreenProps) {
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
@@ -292,7 +293,7 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
             transition={{ delay: 0.5, type: 'spring', stiffness: 130, damping: 18 }}
           >
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Feedback</p>
-            {aiResponse.suggestions.map((s, i) => (
+            {aiResponse.suggestions.map((s: string, i: number) => (
               <motion.p
                 key={i}
                 style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.65, margin: 0, padding: '10px 14px', borderRadius: '12px', background: 'rgba(255,255,255,0.04)' }}
@@ -304,6 +305,25 @@ export function ResultScreen({ photo, vibes, verdict: verdictProp, suggestion: s
               </motion.p>
             ))}
           </motion.div>
+
+          {/* Quick observations */}
+          {reasons && reasons.length > 0 && (
+            <motion.div
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              {reasons.map((r, i) => (
+                <span
+                  key={i}
+                  style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', padding: '5px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  {r}
+                </span>
+              ))}
+            </motion.div>
+          )}
 
           {/* Buttons */}
           <motion.div

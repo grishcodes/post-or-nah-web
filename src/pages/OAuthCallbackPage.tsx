@@ -94,29 +94,28 @@ export default function OAuthCallbackPage(): React.JSX.Element {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-300 to-blue-800 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl shadow-xl p-6">
-          <h1 className="text-2xl font-bold text-white text-center mb-6">Post or Nah</h1>
+    <div className="min-h-screen overflow-hidden flex items-center justify-center px-6" style={{ background: 'var(--deep-bg)', position: 'relative' }}>
+      <div className="orb orb-1 top-[-140px] left-[-120px] opacity-80" />
+      <div className="orb orb-2 bottom-[-100px] right-[-120px] opacity-70" style={{ animationDelay: '5s' }} />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_30%,rgba(124,58,237,0.14),transparent)] pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-xs">
+        <div className="glass rounded-2xl p-6">
+          <h1 className="text-2xl font-bold gradient-text text-center mb-6">Post or Nah</h1>
 
           {error ? (
             <div className="text-center">
-              <p className="text-sm text-red-300 mb-4">{error}</p>
-              <a
-                href="/login"
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition"
-              >
-                Back to Login
+              <p className="text-sm text-red-300/90 mb-4">{error}</p>
+              <a href="/login" className="btn-primary inline-block py-3 px-6 text-sm font-semibold">
+                <span className="relative z-10">Back to Login</span>
               </a>
             </div>
           ) : (
             <div className="text-center">
               <div className="mb-4">
-                <div className="inline-block">
-                  <div className="animate-spin h-8 w-8 border-4 border-blue-200 border-t-white rounded-full"></div>
-                </div>
+                <div className="inline-block w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin-smooth" />
               </div>
-              <p className="text-white text-sm">{status}</p>
+              <p className="text-white/70 text-sm">{status}</p>
             </div>
           )}
         </div>
