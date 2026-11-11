@@ -207,7 +207,7 @@ post-or-nah-web/
 
 ## 📝 License
 
-Private project - All rights reserved
+Licensed under the MIT License
 
 ## 👨‍💻 Development
 
